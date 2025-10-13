@@ -22,6 +22,19 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
   const styles = useStyles2(getStyles);
   const [currentHover, setCurrentHover] = useState<HoverEvent | null>(null);
   const [apiLogs, setApiLogs] = useState<string[]>([]);
+  const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
+
+  const toggleLogExpansion = (index: number) => {
+    setExpandedLogs((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
 
   // Function to send metric data to configured API endpoint
   const sendToAPI = useCallback(
@@ -332,6 +345,16 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
             <div className={styles.widgetContent}>
               {/* Compact metadata at the top */}
               <div className={styles.widgetCompactHeader}>
+                {currentHover.metricData?.time && (
+                  <>
+                    <span className={styles.widgetCompactTime}>
+                      {dateTime(currentHover.metricData.time).format(
+                        "YYYY-MM-DD HH:mm:ss"
+                      )}
+                    </span>
+                    <span className={styles.widgetCompactSeparator}>•</span>
+                  </>
+                )}
                 <span className={styles.widgetCompactPanel}>
                   {currentHover.panelTitle}
                 </span>
@@ -345,31 +368,40 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
                     currentHover.metricData?.value ||
                     "—"}
                 </span>
-                {currentHover.metricData?.time && (
-                  <>
-                    <span className={styles.widgetCompactSeparator}>•</span>
-                    <span className={styles.widgetCompactTime}>
-                      {dateTime(currentHover.metricData.time).format(
-                        "HH:mm:ss"
-                      )}
-                    </span>
-                  </>
-                )}
               </div>
 
               {/* API Response Logs Section - takes up most of the space */}
               {apiLogs.length > 0 ? (
                 <div className={styles.widgetLogsSection}>
-                  <div className={styles.widgetLogsSectionHeader}>
-                    Related Logs
-                  </div>
                   <div className={styles.widgetLogsList}>
-                    {apiLogs.map((log, index) => (
-                      <div key={index} className={styles.widgetLogItem}>
-                        <span className={styles.widgetLogBullet}>•</span>
-                        <span className={styles.widgetLogText}>{log}</span>
-                      </div>
-                    ))}
+                    {apiLogs.map((log, index) => {
+                      const isExpanded = expandedLogs.has(index);
+                      const isTruncated = log.length > 100;
+                      const displayLog =
+                        !isExpanded && isTruncated
+                          ? log.substring(0, 100) + "..."
+                          : log;
+
+                      return (
+                        <div
+                          key={index}
+                          className={styles.widgetLogItem}
+                          onClick={() =>
+                            isTruncated && toggleLogExpansion(index)
+                          }
+                          style={{
+                            cursor: isTruncated ? "pointer" : "default",
+                          }}
+                        >
+                          <span className={styles.widgetLogBullet}>
+                            {isTruncated ? (isExpanded ? "▼" : "▶") : "•"}
+                          </span>
+                          <span className={styles.widgetLogText}>
+                            {displayLog}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -418,47 +450,11 @@ const getStyles = () => {
       opacity: 0.7;
     `,
     currentHoverWidget: css`
-      margin: 12px;
-      padding: 16px;
-      background: linear-gradient(
-        135deg,
-        rgba(115, 191, 105, 0.15) 0%,
-        rgba(115, 191, 105, 0.05) 100%
-      );
-      border: 2px solid rgba(115, 191, 105, 0.5);
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(115, 191, 105, 0.2);
-      animation: pulse 2s ease-in-out infinite;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       flex: 1;
-
-      /* Custom scrollbar */
-      &::-webkit-scrollbar {
-        width: 8px;
-      }
-      &::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 4px;
-      }
-      &::-webkit-scrollbar-thumb {
-        background: rgba(115, 191, 105, 0.4);
-        border-radius: 4px;
-      }
-      &::-webkit-scrollbar-thumb:hover {
-        background: rgba(115, 191, 105, 0.6);
-      }
-
-      @keyframes pulse {
-        0%,
-        100% {
-          box-shadow: 0 4px 12px rgba(115, 191, 105, 0.2);
-        }
-        50% {
-          box-shadow: 0 4px 16px rgba(115, 191, 105, 0.4);
-        }
-      }
+      height: 100%;
     `,
     widgetHeader: css`
       display: flex;
@@ -502,11 +498,12 @@ const getStyles = () => {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 12px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 4px;
-      font-size: 12px;
+      padding: 4px 0;
+      font-size: 11px;
       flex-wrap: wrap;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 6px;
+      margin-bottom: 4px;
     `,
     widgetCompactPanel: css`
       font-weight: 600;
@@ -651,10 +648,17 @@ const getStyles = () => {
       font-family: "Roboto Mono", "Courier New", monospace;
       font-size: 11px;
       line-height: 1.4;
-      transition: background 0.2s ease;
+      transition: all 0.2s ease;
+      user-select: text;
 
       &:hover {
         background: rgba(0, 0, 0, 0.3);
+      }
+
+      &[style*="cursor: pointer"]:hover {
+        background: rgba(115, 191, 105, 0.15);
+        border-left: 2px solid rgba(115, 191, 105, 0.5);
+        padding-left: 6px;
       }
     `,
     widgetLogBullet: css`
