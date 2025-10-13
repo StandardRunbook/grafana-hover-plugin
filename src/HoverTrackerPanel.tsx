@@ -1,0 +1,839 @@
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  PanelProps,
+  DataHoverEvent,
+  LegacyGraphHoverEvent,
+  dateTime,
+} from "@grafana/data";
+import { SimpleOptions, HoverEvent } from "./types";
+import { css, cx } from "@emotion/css";
+import { useStyles2 } from "@grafana/ui";
+import { getAppEvents } from "@grafana/runtime";
+
+interface Props extends PanelProps<SimpleOptions> {}
+
+export const HoverTrackerPanel: React.FC<Props> = (props) => {
+  const { options, width, height, id, eventBus } = props;
+
+  // Note: buildPanelRegistry removed - no longer needed
+  // Note: buildRefIdToPanelMap removed - no longer needed
+  // Panel title comes directly from event.origin._state.title
+
+  const styles = useStyles2(getStyles);
+  const [currentHover, setCurrentHover] = useState<HoverEvent | null>(null);
+  const [apiLogs, setApiLogs] = useState<string[]>([]);
+
+  // Function to send metric data to configured API endpoint
+  const sendToAPI = useCallback(
+    async (event: HoverEvent, eventOrigin?: any) => {
+      // Only send if API endpoint is configured
+      if (!options.apiEndpoint) {
+        return;
+      }
+
+      try {
+        const metricData = event.metricData;
+
+        // Prepare the payload to match log analysis server spec
+        // API expects: metric_name, start_time, end_time (ISO 8601 with Z suffix)
+        const endTime = new Date();
+        const startTime = new Date(Date.now() - 3600000); // Last hour
+
+        // Extract metric name with better fallbacks
+
+        // metric_name: the series/metric name from the data
+        const metricName =
+          metricData?.seriesName || metricData?.fieldName || "Unknown Series";
+
+        // graph_name: the panel title
+        const graphName = event.panelTitle || "Unknown Panel";
+
+        // dashboard_name: from the dashboard state
+        // Based on the structure: event.origin._eventsOrigin._state is the dashboard state
+        const dashboardState = eventOrigin?._eventsOrigin?._state;
+        const dashboardName = dashboardState?.title || "Unknown Dashboard";
+
+        // org_name: from dashboard metadata
+        // Check meta object for org/folder information
+        const dashboardMeta = dashboardState?.meta;
+        const orgName =
+          dashboardMeta?.folderTitle ||
+          dashboardMeta?.slug ||
+          "Unknown Organization";
+
+        const payload = {
+          org: orgName,
+          dashboard: dashboardName,
+          panel_title: graphName,
+          metric_name: metricName,
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+        };
+
+        console.log("📤 Sending to API:", options.apiEndpoint);
+        console.log("Payload:", payload);
+
+        const response = await fetch(options.apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          console.error("API request failed:", response.statusText);
+          return;
+        }
+
+        const result = await response.json();
+
+        // Parse log_groups response from log analysis server
+        // Expected format: { log_groups: [{ representative_logs: [...], relative_change: number }] }
+        if (result && Array.isArray(result.log_groups)) {
+          const formattedLogs: string[] = [];
+
+          result.log_groups.forEach((group: any, index: number) => {
+            const change = group.relative_change;
+            const changeSymbol = change > 0 ? "↑" : change < 0 ? "↓" : "→";
+            const changeColor =
+              change > 50
+                ? "🔴"
+                : change > 10
+                ? "🟠"
+                : change < -10
+                ? "🟢"
+                : "⚪";
+
+            formattedLogs.push(
+              `${changeColor} ${changeSymbol} ${change.toFixed(
+                1
+              )}% change from baseline`
+            );
+
+            if (Array.isArray(group.representative_logs)) {
+              group.representative_logs.forEach((log: string) => {
+                formattedLogs.push(`  ${log}`);
+              });
+            }
+
+            // Add separator between groups (except for last group)
+            if (index < result.log_groups.length - 1) {
+              formattedLogs.push("─────────────────────────────");
+            }
+          });
+
+          setApiLogs(formattedLogs);
+        } else {
+          console.warn("Unexpected API response format:", result);
+          setApiLogs([]);
+        }
+      } catch (error) {
+        console.error("Error sending to API:", error);
+        setApiLogs([`Error: ${error}`]);
+      }
+    },
+    [options.apiEndpoint]
+  );
+
+  useEffect(() => {
+    // Subscribe to Grafana hover events
+    const appEvents = getAppEvents();
+
+    // Method 1: Use eventBus from props (recommended approach)
+    const dataHoverSub = eventBus
+      ?.getStream(DataHoverEvent)
+      .subscribe((event) => {
+        // Extract event origin for panel info
+        const eventOrigin = (event as any)?.origin;
+        const payloadOrigin = (event.payload as any)?.origin;
+
+        // Extract data from the payload
+        const payload = event.payload as any;
+        const point = payload?.point || {};
+        const data = payload?.data; // This should be the DataFrame
+
+        // Get series name from the data frame
+        let seriesName = "Unknown Series";
+        let fieldName = "";
+        let value: any = undefined;
+        let formattedValue: string | undefined = undefined;
+        let time: number | undefined = undefined;
+
+        // Extract from DataFrame if available
+        if (data && data.fields) {
+          // Find the field that was hovered
+          const fieldIndex = payload?.columnIndex ?? payload?.fieldIndex;
+          const rowIndex = payload?.rowIndex ?? payload?.dataIndex;
+
+          // If columnIndex is undefined, find the first non-time field
+          let targetFieldIndex = fieldIndex;
+          if (targetFieldIndex === undefined) {
+            targetFieldIndex = data.fields.findIndex(
+              (f: any) => f.type !== "time"
+            );
+          }
+
+          if (targetFieldIndex !== undefined && data.fields[targetFieldIndex]) {
+            const field = data.fields[targetFieldIndex];
+            fieldName = field.name || "";
+
+            // Extract series name with priority: displayName > name > labels.__name__ > labels
+            seriesName =
+              field.config?.displayName ||
+              field.name ||
+              data.name ||
+              "Unknown Series";
+
+            // Get the value at the hovered row
+            if (
+              rowIndex !== undefined &&
+              field.values &&
+              field.values.length > rowIndex
+            ) {
+              value = field.values[rowIndex];
+              formattedValue = field.display
+                ? field.display(value).text
+                : String(value);
+            }
+          }
+
+          // Try to get time from the first field (usually time field)
+          if (
+            rowIndex !== undefined &&
+            data.fields[0]?.values?.length > rowIndex
+          ) {
+            time = data.fields[0].values[rowIndex];
+          }
+        }
+
+        // Fallback to point data
+        if (value === undefined && point?.value !== undefined) {
+          value = point.value;
+        }
+        if (seriesName === "Unknown Series" && payload?.dataId) {
+          seriesName = payload.dataId;
+        }
+
+        // Extract panel info from available data
+        const refId = data?.refId;
+
+        // Try multiple sources for panel title and ID:
+        // 1. Check if payload has panel info
+        // 2. Use data frame name or refId
+        // 3. Fallback to "Unknown Panel"
+
+        let panelTitle = "Unknown Panel";
+        let panelId = "unknown";
+
+        // PRIMARY: Get title from event.origin._eventsOrigin._state.title
+        if (eventOrigin?._eventsOrigin?._state?.title) {
+          panelTitle = eventOrigin._eventsOrigin._state.title;
+        }
+        // FALLBACK 1: Try direct _state.title (in case structure varies)
+        else if (eventOrigin?._state?.title) {
+          panelTitle = eventOrigin._state.title;
+        }
+        // FALLBACK 2: Try payload origin
+        else if (payloadOrigin?._eventsOrigin?._state?.title) {
+          panelTitle = payloadOrigin._eventsOrigin._state.title;
+        } else if (payloadOrigin?._state?.title) {
+          panelTitle = payloadOrigin._state.title;
+        }
+        // FALLBACK 3: Try data frame metadata
+        else if (data?.meta?.custom?.title) {
+          panelTitle = data.meta.custom.title;
+        }
+        // FALLBACK 4: Use series name or refId
+        else if (data?.name) {
+          panelTitle = `Panel: ${data.name}`;
+        } else if (refId) {
+          panelTitle = `Query ${refId}`;
+        }
+
+        // Get panel ID from refId or origin
+        if (refId) {
+          panelId = refId;
+        } else if (eventOrigin?.panelId) {
+          panelId = eventOrigin.panelId;
+        } else if (payloadOrigin?.panelId) {
+          panelId = payloadOrigin.panelId;
+        }
+
+        const newEvent: HoverEvent = {
+          panelId,
+          panelTitle,
+          timestamp: Date.now(),
+          x: point?.time || point?.x || 0,
+          y: value || point?.y || 0,
+          elementType: "data-hover",
+          metricData: {
+            seriesName,
+            fieldName,
+            value,
+            formattedValue,
+            time,
+            fieldIndex: payload?.columnIndex ?? payload?.fieldIndex,
+            dataIndex: payload?.rowIndex ?? payload?.dataIndex,
+            point: point,
+            dataFrame: data,
+          },
+        };
+
+        // Update current hover widget
+        setCurrentHover(newEvent);
+
+        // Send to API if configured (pass eventOrigin for dashboard/org info)
+        sendToAPI(newEvent, eventOrigin);
+      });
+
+    // Intentionally NOT subscribing to DataHoverClearEvent
+    // We want to persist the hover data until a new hover event occurs
+
+    // Method 2: Fallback using getAppEvents() for legacy support
+    const legacyHoverSub = appEvents.subscribe(
+      LegacyGraphHoverEvent,
+      (event) => {
+        const newEvent: HoverEvent = {
+          panelId: "legacy-graph-hover",
+          panelTitle: "Legacy Graph Hover",
+          timestamp: Date.now(),
+          x: (event.payload as any)?.pos?.x || 0,
+          y: (event.payload as any)?.pos?.y || 0,
+          elementType: "legacy-graph-hover",
+          metricData: {
+            seriesName: (event.payload as any)?.series?.name || "Legacy Series",
+            value: (event.payload as any)?.value,
+          },
+        };
+
+        // Update current hover widget
+        setCurrentHover(newEvent);
+
+        // Send to API if configured
+        sendToAPI(newEvent);
+      }
+    );
+
+    return () => {
+      dataHoverSub?.unsubscribe();
+      legacyHoverSub?.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.historySize, options.trackOwnPanel, id, sendToAPI, eventBus]);
+
+  return (
+    <>
+      {/* Main Panel */}
+      <div className={cx(styles.wrapper)} style={{ width, height }}>
+        {/* Dynamic Current Hover Widget */}
+        {currentHover && (
+          <div className={styles.currentHoverWidget}>
+            <div className={styles.widgetContent}>
+              {/* Compact metadata at the top */}
+              <div className={styles.widgetCompactHeader}>
+                <span className={styles.widgetCompactPanel}>
+                  {currentHover.panelTitle}
+                </span>
+                <span className={styles.widgetCompactSeparator}>•</span>
+                <span className={styles.widgetCompactSeries}>
+                  {currentHover.metricData?.seriesName || "No Series"}
+                </span>
+                <span className={styles.widgetCompactSeparator}>•</span>
+                <span className={styles.widgetCompactValue}>
+                  {currentHover.metricData?.formattedValue ||
+                    currentHover.metricData?.value ||
+                    "—"}
+                </span>
+                {currentHover.metricData?.time && (
+                  <>
+                    <span className={styles.widgetCompactSeparator}>•</span>
+                    <span className={styles.widgetCompactTime}>
+                      {dateTime(currentHover.metricData.time).format(
+                        "HH:mm:ss"
+                      )}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* API Response Logs Section - takes up most of the space */}
+              {apiLogs.length > 0 ? (
+                <div className={styles.widgetLogsSection}>
+                  <div className={styles.widgetLogsSectionHeader}>
+                    Related Logs
+                  </div>
+                  <div className={styles.widgetLogsList}>
+                    {apiLogs.map((log, index) => (
+                      <div key={index} className={styles.widgetLogItem}>
+                        <span className={styles.widgetLogBullet}>•</span>
+                        <span className={styles.widgetLogText}>{log}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.widgetLoading}>Loading logs...</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!currentHover && (
+          <div className={styles.noCurrentHover}>
+            <div className={styles.noHoverIcon}>👆</div>
+            <div className={styles.noHoverText}>
+              Hover over a panel to see live data
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
+const getStyles = () => {
+  return {
+    wrapper: css`
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    `,
+    header: css`
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    `,
+    title: css`
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+    `,
+    count: css`
+      font-size: 12px;
+      opacity: 0.7;
+    `,
+    currentHoverWidget: css`
+      margin: 12px;
+      padding: 16px;
+      background: linear-gradient(
+        135deg,
+        rgba(115, 191, 105, 0.15) 0%,
+        rgba(115, 191, 105, 0.05) 100%
+      );
+      border: 2px solid rgba(115, 191, 105, 0.5);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(115, 191, 105, 0.2);
+      animation: pulse 2s ease-in-out infinite;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex: 1;
+
+      /* Custom scrollbar */
+      &::-webkit-scrollbar {
+        width: 8px;
+      }
+      &::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: rgba(115, 191, 105, 0.4);
+        border-radius: 4px;
+      }
+      &::-webkit-scrollbar-thumb:hover {
+        background: rgba(115, 191, 105, 0.6);
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 4px 12px rgba(115, 191, 105, 0.2);
+        }
+        50% {
+          box-shadow: 0 4px 16px rgba(115, 191, 105, 0.4);
+        }
+      }
+    `,
+    widgetHeader: css`
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(115, 191, 105, 0.3);
+    `,
+    widgetTitle: css`
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(115, 191, 105, 1);
+    `,
+    widgetLive: css`
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(115, 191, 105, 1);
+      animation: blink 1.5s ease-in-out infinite;
+
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+    `,
+    widgetContent: css`
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+    `,
+    widgetCompactHeader: css`
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    `,
+    widgetCompactPanel: css`
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+    `,
+    widgetCompactSeparator: css`
+      color: rgba(255, 255, 255, 0.3);
+    `,
+    widgetCompactSeries: css`
+      color: rgba(255, 255, 255, 0.7);
+    `,
+    widgetCompactValue: css`
+      font-weight: 700;
+      color: rgba(115, 191, 105, 1);
+      font-family: "Roboto Mono", monospace;
+    `,
+    widgetCompactTime: css`
+      color: rgba(255, 255, 255, 0.6);
+      font-family: "Roboto Mono", monospace;
+      font-size: 11px;
+    `,
+    widgetLoading: css`
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: rgba(255, 255, 255, 0.5);
+      font-style: italic;
+    `,
+    widgetMainValue: css`
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    `,
+    widgetSeriesName: css`
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      letter-spacing: 0.3px;
+    `,
+    widgetValue: css`
+      font-size: 32px;
+      font-weight: 700;
+      color: rgba(115, 191, 105, 1);
+      line-height: 1.2;
+      font-family: "Roboto Mono", monospace;
+    `,
+    widgetMetadata: css`
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    `,
+    widgetMetaRow: css`
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    `,
+    widgetMetaLabel: css`
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    `,
+    widgetMetaValue: css`
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.9);
+      text-align: right;
+    `,
+    noCurrentHover: css`
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      margin: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 2px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      opacity: 0.6;
+    `,
+    noHoverIcon: css`
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    `,
+    noHoverText: css`
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+      text-align: center;
+    `,
+    widgetLogsSection: css`
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      padding-top: 8px;
+    `,
+    widgetLogsSectionHeader: css`
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: rgba(115, 191, 105, 0.8);
+      margin-bottom: 8px;
+    `,
+    widgetLogsList: css`
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+
+      /* Custom scrollbar */
+      &::-webkit-scrollbar {
+        width: 6px;
+      }
+      &::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: rgba(115, 191, 105, 0.4);
+        border-radius: 3px;
+      }
+      &::-webkit-scrollbar-thumb:hover {
+        background: rgba(115, 191, 105, 0.6);
+      }
+    `,
+    widgetLogItem: css`
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 6px 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+      font-family: "Roboto Mono", "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      transition: background 0.2s ease;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.3);
+      }
+    `,
+    widgetLogBullet: css`
+      color: rgba(115, 191, 105, 0.8);
+      font-weight: bold;
+      flex-shrink: 0;
+      margin-top: 2px;
+    `,
+    widgetLogText: css`
+      color: rgba(255, 255, 255, 0.85);
+      word-break: break-word;
+      flex: 1;
+    `,
+    eventList: css`
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    `,
+    event: css`
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      border-left: 3px solid rgba(115, 191, 105, 0.7);
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-left-color: rgba(115, 191, 105, 1);
+      }
+    `,
+    eventHeader: css`
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    `,
+    panelName: css`
+      font-weight: 500;
+      font-size: 14px;
+    `,
+    timestamp: css`
+      font-size: 11px;
+      opacity: 0.6;
+    `,
+    eventDetails: css`
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      opacity: 0.9;
+    `,
+    detail: css`
+      display: inline-block;
+    `,
+    metricInfo: css`
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    `,
+    metricLabel: css`
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+      min-width: 60px;
+    `,
+    metricValue: css`
+      color: rgba(255, 255, 255, 0.9);
+      word-break: break-word;
+      flex: 1;
+    `,
+    noEvents: css`
+      text-align: center;
+      padding: 32px;
+      opacity: 0.5;
+    `,
+    debugInfo: css`
+      margin-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 8px;
+    `,
+    debugSummary: css`
+      cursor: pointer;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      &:hover {
+        color: rgba(255, 255, 255, 0.8);
+      }
+    `,
+    debugPre: css`
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      overflow-x: auto;
+      margin: 4px 0 0 0;
+      max-height: 200px;
+      overflow-y: auto;
+    `,
+    customTooltip: css`
+      position: fixed;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(115, 191, 105, 0.7);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      max-width: 300px;
+      font-size: 12px;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+    `,
+    tooltipHeader: css`
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(115, 191, 105, 0.3);
+      font-size: 14px;
+      color: rgba(115, 191, 105, 1);
+    `,
+    tooltipContent: css`
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    `,
+    tooltipRow: css`
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    `,
+    tooltipLabel: css`
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+      min-width: 50px;
+      flex-shrink: 0;
+    `,
+    tooltipValue: css`
+      color: rgba(255, 255, 255, 0.9);
+      word-break: break-word;
+      text-align: right;
+      flex: 1;
+    `,
+    tooltipDivider: css`
+      margin: 8px 0;
+      height: 1px;
+      background: rgba(115, 191, 105, 0.3);
+    `,
+    tooltipSection: css`
+      margin-top: 8px;
+    `,
+    tooltipSectionHeader: css`
+      font-weight: 600;
+      color: rgba(115, 191, 105, 0.8);
+      font-size: 11px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    `,
+    tooltipLoading: css`
+      color: rgba(255, 255, 255, 0.6);
+      font-style: italic;
+      font-size: 11px;
+    `,
+    tooltipDataFrame: css`
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      &:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+    `,
+    tooltipFields: css`
+      margin-top: 4px;
+    `,
+    tooltipMuted: css`
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 11px;
+      font-style: italic;
+    `,
+  };
+};

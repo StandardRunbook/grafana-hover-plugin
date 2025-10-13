@@ -1,0 +1,13 @@
+{
+  "extends": "@grafana/tsconfig",
+  "include": ["src/**/*", "types/**/*", ".config/**/*"],
+  "compilerOptions": {
+    "jsx": "react",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["src/*"]
+    },
+    "typeRoots": ["./node_modules/@types", "./types"]
+  }
+}

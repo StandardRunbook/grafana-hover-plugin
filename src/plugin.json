@@ -1,0 +1,24 @@
+{
+  "type": "panel",
+  "name": "Hover Tracker Panel",
+  "id": "hover-tracker-panel",
+  "info": {
+    "keywords": ["hover", "tracker", "activity", "dashboard"],
+    "description": "Track and visualize hover actions across your Grafana dashboard",
+    "author": {
+      "name": "Your Name"
+    },
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=9.0.0",
+    "plugins": []
+  }
+}
