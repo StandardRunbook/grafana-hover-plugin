@@ -8,7 +8,7 @@ import {
 import { SimpleOptions, HoverEvent } from "./types";
 import { css, cx } from "@emotion/css";
 import { useStyles2 } from "@grafana/ui";
-import { getAppEvents } from "@grafana/runtime";
+import { getAppEvents, config as grafanaConfig } from "@grafana/runtime";
 
 interface Props extends PanelProps<SimpleOptions> {}
 
@@ -23,6 +23,7 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
   const [currentHover, setCurrentHover] = useState<HoverEvent | null>(null);
   const [apiLogs, setApiLogs] = useState<string[]>([]);
   const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
   const toggleLogExpansion = (index: number) => {
     setExpandedLogs((prev) => {
@@ -39,18 +40,26 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
   // Function to send metric data to configured API endpoint
   const sendToAPI = useCallback(
     async (event: HoverEvent, eventOrigin?: any) => {
+      const apiEndpoint = options.apiEndpoint;
+      console.log("🔍 sendToAPI called, endpoint:", apiEndpoint);
+
       // Only send if API endpoint is configured
-      if (!options.apiEndpoint) {
+      if (!apiEndpoint) {
+        console.log("⚠️ No API endpoint configured, skipping");
         return;
       }
 
       try {
+        // Clear old logs and show loading state
+        setIsLoadingLogs(true);
+        setApiLogs([]);
+
         const metricData = event.metricData;
 
         // Prepare the payload to match log analysis server spec
         // API expects: metric_name, start_time, end_time (ISO 8601 with Z suffix)
         const endTime = new Date();
-        const startTime = new Date(Date.now() - 3600000); // Last hour
+        const startTime = new Date(Date.now() - options.timeWindowMs);
 
         // Extract metric name with better fallbacks
 
@@ -66,16 +75,11 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
         const dashboardState = eventOrigin?._eventsOrigin?._state;
         const dashboardName = dashboardState?.title || "Unknown Dashboard";
 
-        // org_name: from dashboard metadata
-        // Check meta object for org/folder information
-        const dashboardMeta = dashboardState?.meta;
-        const orgName =
-          dashboardMeta?.folderTitle ||
-          dashboardMeta?.slug ||
-          "Unknown Organization";
+        // org: Get the Grafana organization ID and convert to string
+        const orgId = String(grafanaConfig.bootData?.user?.orgId || 1);
 
         const payload = {
-          org: orgName,
+          org: orgId,
           dashboard: dashboardName,
           panel_title: graphName,
           metric_name: metricName,
@@ -83,19 +87,38 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
           end_time: endTime.toISOString(),
         };
 
-        console.log("📤 Sending to API:", options.apiEndpoint);
+        console.log("📤 Sending to API:", apiEndpoint);
         console.log("Payload:", payload);
 
-        const response = await fetch(options.apiEndpoint, {
+        // Build headers with optional API key
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (options.apiKey) {
+          headers["Authorization"] = `Bearer ${options.apiKey}`;
+        }
+
+        const response = await fetch(apiEndpoint, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
-          console.error("API request failed:", response.statusText);
+          const errorText = await response.text();
+          console.error(
+            "❌ API request failed:",
+            response.status,
+            response.statusText
+          );
+          console.error("Error response:", errorText);
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error("Error details:", errorJson);
+          } catch (e) {
+            // Not JSON, already logged as text
+          }
           return;
         }
 
@@ -105,8 +128,15 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
         // Expected format: { log_groups: [{ representative_logs: [...], relative_change: number }] }
         if (result && Array.isArray(result.log_groups)) {
           const formattedLogs: string[] = [];
+          const MAX_LOGS = options.maxLogs;
+          const MAX_LOG_LENGTH = options.maxLogLength;
+          let totalLogs = 0;
 
           result.log_groups.forEach((group: any, index: number) => {
+            if (totalLogs >= MAX_LOGS) {
+              return; // Stop processing if we hit the limit
+            }
+
             const change = group.relative_change;
             const changeSymbol = change > 0 ? "↑" : change < 0 ? "↓" : "→";
             const changeColor =
@@ -123,30 +153,55 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
                 1
               )}% change from baseline`
             );
+            totalLogs++;
 
             if (Array.isArray(group.representative_logs)) {
               group.representative_logs.forEach((log: string) => {
-                formattedLogs.push(`  ${log}`);
+                if (totalLogs >= MAX_LOGS) {
+                  return;
+                }
+                // Truncate extremely long logs but allow expansion
+                const truncatedLog =
+                  log.length > MAX_LOG_LENGTH
+                    ? log.substring(0, MAX_LOG_LENGTH) + "... [truncated]"
+                    : log;
+                formattedLogs.push(`  ${truncatedLog}`);
+                totalLogs++;
               });
-            }
-
-            // Add separator between groups (except for last group)
-            if (index < result.log_groups.length - 1) {
-              formattedLogs.push("─────────────────────────────");
             }
           });
 
+          if (totalLogs >= MAX_LOGS) {
+            formattedLogs.push(
+              `... [${
+                result.log_groups.length - formattedLogs.length
+              } more logs truncated for performance]`
+            );
+          }
+
+          console.log("📋 Setting API logs, count:", formattedLogs.length);
+          console.log("First few logs:", formattedLogs.slice(0, 3));
           setApiLogs(formattedLogs);
+          setIsLoadingLogs(false);
         } else {
           console.warn("Unexpected API response format:", result);
+          console.log("Full result:", result);
           setApiLogs([]);
+          setIsLoadingLogs(false);
         }
       } catch (error) {
         console.error("Error sending to API:", error);
         setApiLogs([`Error: ${error}`]);
+        setIsLoadingLogs(false);
       }
     },
-    [options.apiEndpoint]
+    [
+      options.apiEndpoint,
+      options.apiKey,
+      options.timeWindowMs,
+      options.maxLogs,
+      options.maxLogLength,
+    ]
   );
 
   useEffect(() => {
@@ -157,6 +212,8 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
     const dataHoverSub = eventBus
       ?.getStream(DataHoverEvent)
       .subscribe((event) => {
+        console.log("🎯 HOVER EVENT RECEIVED");
+
         // Extract event origin for panel info
         const eventOrigin = (event as any)?.origin;
         const payloadOrigin = (event.payload as any)?.origin;
@@ -293,10 +350,13 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
           },
         };
 
+        console.log("✅ Setting currentHover:", newEvent.panelTitle);
+
         // Update current hover widget
         setCurrentHover(newEvent);
 
         // Send to API if configured (pass eventOrigin for dashboard/org info)
+        console.log("📡 Calling sendToAPI, endpoint:", options.apiEndpoint);
         sendToAPI(newEvent, eventOrigin);
       });
 
@@ -333,7 +393,7 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
       legacyHoverSub?.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.historySize, options.trackOwnPanel, id, sendToAPI, eventBus]);
+  }, [id, sendToAPI, eventBus]);
 
   return (
     <>
@@ -371,33 +431,38 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
               </div>
 
               {/* API Response Logs Section - takes up most of the space */}
-              {apiLogs.length > 0 ? (
+              {isLoadingLogs ? (
+                <div className={styles.widgetLoading}>Loading logs...</div>
+              ) : apiLogs.length > 0 ? (
                 <div className={styles.widgetLogsSection}>
                   <div className={styles.widgetLogsList}>
                     {apiLogs.map((log, index) => {
                       const isExpanded = expandedLogs.has(index);
-                      const isTruncated = log.length > 100;
-                      const displayLog =
-                        !isExpanded && isTruncated
-                          ? log.substring(0, 100) + "..."
-                          : log;
+                      const maxLength = options.logTruncateLength;
+                      const isLong = log.length > maxLength;
 
                       return (
                         <div
                           key={index}
                           className={styles.widgetLogItem}
-                          onClick={() =>
-                            isTruncated && toggleLogExpansion(index)
-                          }
+                          onClick={() => isLong && toggleLogExpansion(index)}
                           style={{
-                            cursor: isTruncated ? "pointer" : "default",
+                            cursor: isLong ? "pointer" : "default",
                           }}
+                          title={
+                            isLong ? "Click to expand/collapse" : undefined
+                          }
                         >
-                          <span className={styles.widgetLogBullet}>
-                            {isTruncated ? (isExpanded ? "▼" : "▶") : "•"}
-                          </span>
+                          {isLong && (
+                            <span className={styles.widgetLogToggle}>
+                              {isExpanded ? "▼" : "▶"}
+                            </span>
+                          )}
                           <span className={styles.widgetLogText}>
-                            {displayLog}
+                            {isExpanded || !isLong
+                              ? log
+                              : log.substring(0, maxLength) +
+                                "... (click to expand)"}
                           </span>
                         </div>
                       );
@@ -405,7 +470,7 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
                   </div>
                 </div>
               ) : (
-                <div className={styles.widgetLoading}>Loading logs...</div>
+                <div className={styles.widgetLoading}>No logs found</div>
               )}
             </div>
           </div>
@@ -640,37 +705,50 @@ const getStyles = () => {
     `,
     widgetLogItem: css`
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: flex-start;
-      padding: 6px 8px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 4px;
+      padding: 4px 6px;
+      margin: 0;
       font-family: "Roboto Mono", "Courier New", monospace;
       font-size: 11px;
       line-height: 1.4;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
       user-select: text;
+      border-left: 2px solid transparent;
 
       &:hover {
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(255, 255, 255, 0.03);
       }
 
-      &[style*="cursor: pointer"]:hover {
-        background: rgba(115, 191, 105, 0.15);
-        border-left: 2px solid rgba(115, 191, 105, 0.5);
-        padding-left: 6px;
+      &[style*="cursor: pointer"] {
+        &:hover {
+          background: rgba(115, 191, 105, 0.08);
+          border-left-color: rgba(115, 191, 105, 0.6);
+        }
       }
     `,
-    widgetLogBullet: css`
-      color: rgba(115, 191, 105, 0.8);
-      font-weight: bold;
+    widgetLogToggle: css`
+      color: rgba(115, 191, 105, 0.7);
+      font-size: 9px;
       flex-shrink: 0;
-      margin-top: 2px;
+      width: 12px;
+      margin-top: 3px;
     `,
     widgetLogText: css`
       color: rgba(255, 255, 255, 0.85);
       word-break: break-word;
       flex: 1;
+    `,
+    widgetLogDivider: css`
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        transparent,
+        rgba(115, 191, 105, 0.3) 20%,
+        rgba(115, 191, 105, 0.3) 80%,
+        transparent
+      );
+      margin: 12px 0;
     `,
     eventList: css`
       flex: 1;

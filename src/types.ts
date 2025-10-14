@@ -1,9 +1,10 @@
 export interface SimpleOptions {
-  historySize: number;
-  showTimestamp: boolean;
-  trackOwnPanel: boolean;
-  eventChannel: string;
-  apiEndpoint?: string;
+  apiEndpoint: string;
+  apiKey?: string;
+  timeWindowMs: number;
+  maxLogs: number;
+  maxLogLength: number;
+  logTruncateLength: number;
 }
 
 export interface HoverEvent {
