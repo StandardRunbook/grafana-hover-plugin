@@ -1,0 +1,99 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm run test:ci
+
+      - name: Run linting
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Build plugin
+        run: pnpm run build
+
+      - name: Validate plugin
+        run: |
+          npx @grafana/plugin-validator@latest dist/
+
+      - name: Package plugin
+        run: |
+          cd dist
+          zip -r ../hover-hover-panel-${{ github.ref_name }}.zip .
+
+      - name: Sign plugin
+        if: env.GRAFANA_ACCESS_POLICY_TOKEN != ''
+        run: |
+          export GRAFANA_ACCESS_POLICY_TOKEN=${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+          npx @grafana/sign-plugin@latest dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: hover-hover-panel-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          body: |
+            ## What's New in ${{ github.ref_name }}
+            
+            See [CHANGELOG.md](https://github.com/StandardRunbook/grafana-hover-plugin/blob/main/CHANGELOG.md) for detailed changes.
+            
+            ## Installation
+            
+            Download the `hover-hover-panel-${{ github.ref_name }}.zip` file and extract it to your Grafana plugins directory.
+            
+            ```bash
+            # Extract to Grafana plugins directory
+            unzip hover-hover-panel-${{ github.ref_name }}.zip -d /var/lib/grafana/plugins/
+            
+            # Restart Grafana
+            sudo systemctl restart grafana-server
+            ```
+            
+            ## Requirements
+            
+            - Grafana 9.0.0 or higher
+            - Node.js 20+ (for development)
+            
+            ## Documentation
+            
+            - [README](https://github.com/StandardRunbook/grafana-hover-plugin#readme)
+            - [API Specification](https://github.com/StandardRunbook/grafana-hover-plugin/blob/main/API_SPECIFICATION.md)
+            - [Version Management](https://github.com/StandardRunbook/grafana-hover-plugin/blob/main/VERSION_MANAGEMENT.md)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

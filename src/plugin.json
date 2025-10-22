@@ -23,25 +23,19 @@
     "links": [
       {
         "name": "GitHub",
-        "url": "https://github.com/ankilp/grafana-hover-tracker-panel"
+        "url": "https://github.com/StandardRunbook/grafana-hover-plugin"
       },
       {
         "name": "Documentation",
-        "url": "https://github.com/ankilp/grafana-hover-tracker-panel#readme"
+        "url": "https://github.com/StandardRunbook/grafana-hover-plugin#readme"
       },
       {
         "name": "Website",
         "url": "https://ankilp.github.io"
-      }
-    ],
-    "screenshots": [
-      {
-        "name": "Main view showing logs on hover",
-        "path": "img/screenshot-main.png"
       },
       {
-        "name": "Panel configuration",
-        "path": "img/screenshot-config.png"
+        "name": "Sponsorship",
+        "url": "https://github.com/sponsors/ankilp"
       }
     ],
     "version": "1.0.0",

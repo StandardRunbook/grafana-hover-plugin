@@ -1,0 +1,13 @@
+{
+  "name": "hover-plugin-test-api",
+  "version": "1.0.0",
+  "description": "Mock API server for testing the Hover Tracker Panel plugin",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

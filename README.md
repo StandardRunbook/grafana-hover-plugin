@@ -1,10 +1,18 @@
 # Hover - Grafana Panel Plugin
 
+[![Grafana](https://img.shields.io/badge/Grafana-9.0%2B-orange?logo=grafana)](https://grafana.com)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green?logo=node.js)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
+[![Downloads](https://img.shields.io/badge/Downloads-0-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
+
 **Automatically correlate metrics with logs when you hover over data points.**
 
 Hover is a Grafana panel plugin that displays related logs when you hover over metrics in other panels on your dashboard. It helps you troubleshoot issues faster by automatically correlating your time-series data with relevant logs from the same time window.
 
-![Hover Panel Demo](https://via.placeholder.com/800x400?text=Demo+Screenshot)
+
+> **🚀 Quick Start**: Add the Hover panel to your dashboard, configure your API endpoint, and start hovering over data points to see correlated logs instantly!
 
 ## Features
 
@@ -43,7 +51,7 @@ grafana-cli plugins install hover-hover-panel
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/ankilp/grafana-hover-tracker-panel/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
 2. Extract to your Grafana plugins directory:
    ```bash
    # Linux
@@ -63,8 +71,8 @@ grafana-cli plugins install hover-hover-panel
 
 ```bash
 # Clone the repository
-git clone https://github.com/ankilp/grafana-hover-tracker-panel.git
-cd grafana-hover-tracker-panel
+git clone https://github.com/StandardRunbook/grafana-hover-plugin.git
+cd grafana-hover-plugin
 
 # Install dependencies
 pnpm install
@@ -237,32 +245,7 @@ For the best experience, enable **shared crosshair** in your dashboard settings:
 
 ## Development
 
-### Prerequisites
-- Node.js 18+
-- pnpm 8+
-- Grafana 9.0+
-
-### Setup
-```bash
-pnpm install
-pnpm run dev
-```
-
-### Build
-```bash
-pnpm run build
-```
-
-### Test
-```bash
-pnpm run test
-```
-
-### Sign Plugin
-```bash
-export GRAFANA_ACCESS_POLICY_TOKEN=<your-token>
-npx @grafana/sign-plugin@latest
-```
+For developer and contributor information, see [DEVELOPMENT.md](https://github.com/StandardRunbook/grafana-hover-plugin/blob/main/DEVELOPMENT.md).
 
 ## Requirements
 
@@ -299,12 +282,12 @@ Contributions are welcome! Please:
 
 ## License
 
-Apache 2.0 - see [LICENSE](LICENSE) for details.
+Apache 2.0 - see [LICENSE](https://github.com/StandardRunbook/grafana-hover-plugin/blob/main/LICENSE) for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/ankilp/grafana-hover-tracker-panel/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ankilp/grafana-hover-tracker-panel/discussions)
+- **Issues**: [GitHub Issues](https://github.com/StandardRunbook/grafana-hover-plugin/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/StandardRunbook/grafana-hover-plugin/discussions)
 - **Author**: Ankil Patel
 - **Website**: [ankilp.github.io](https://ankilp.github.io)
 
