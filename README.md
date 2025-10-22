@@ -1,11 +1,8 @@
 # Hover - Grafana Panel Plugin
 
 [![Grafana](https://img.shields.io/badge/Grafana-9.0%2B-orange?logo=grafana)](https://grafana.com)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green?logo=node.js)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
-[![Downloads](https://img.shields.io/badge/Downloads-0-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
 
 **Automatically correlate metrics with logs when you hover over data points.**
 
@@ -67,29 +64,6 @@ grafana-cli plugins install hover-hover-panel
    ```
 3. Restart Grafana
 
-### Development Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/StandardRunbook/grafana-hover-plugin.git
-cd grafana-hover-plugin
-
-# Install dependencies
-pnpm install
-
-# Build the plugin
-pnpm run build
-
-# Link to Grafana plugins directory
-ln -s $(pwd)/dist /var/lib/grafana/plugins/hover-hover-panel
-
-# Add to Grafana config (for unsigned plugin during development)
-# grafana.ini:
-[plugins]
-allow_loading_unsigned_plugins = hover-hover-panel
-
-# Restart Grafana
-```
 
 ## Configuration
 
@@ -179,51 +153,7 @@ The panel color-codes log groups based on the `relative_change` value:
 
 ## Example API Implementation
 
-Here's a minimal Express.js example with optional API key authentication:
-
-```javascript
-const express = require('express');
-const app = express();
-
-app.use(express.json());
-
-// Middleware to verify API key (optional)
-const verifyApiKey = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  
-  // If you require an API key, validate it here
-  if (process.env.REQUIRE_API_KEY) {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Missing or invalid API key' });
-    }
-    
-    const apiKey = authHeader.substring(7);
-    if (apiKey !== process.env.API_KEY) {
-      return res.status(403).json({ error: 'Invalid API key' });
-    }
-  }
-  
-  next();
-};
-
-app.post('/query_logs', verifyApiKey, async (req, res) => {
-  const { org, dashboard, panel_title, metric_name, start_time, end_time } = req.body;
-  
-  // Query your log storage (Elasticsearch, Loki, etc.)
-  const logs = await queryLogs({
-    metric: metric_name,
-    startTime: new Date(start_time),
-    endTime: new Date(end_time),
-  });
-  
-  // Group and analyze logs
-  const logGroups = analyzeLogs(logs);
-  
-  res.json({ log_groups: logGroups });
-});
-
-app.listen(3001);
-```
+For a complete reference implementation, see the `test-api` directory in the repository.
 
 ## Usage Tips
 
@@ -243,9 +173,6 @@ For the best experience, enable **shared crosshair** in your dashboard settings:
 - Set **Max Logs** to limit result size
 - Use **Log Truncate Length** to keep the UI clean
 
-## Development
-
-For developer and contributor information, see [DEVELOPMENT.md](https://github.com/StandardRunbook/grafana-hover-plugin/blob/main/DEVELOPMENT.md).
 
 ## Requirements
 
