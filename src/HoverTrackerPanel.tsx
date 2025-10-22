@@ -41,11 +41,9 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
   const sendToAPI = useCallback(
     async (event: HoverEvent, eventOrigin?: any) => {
       const apiEndpoint = options.apiEndpoint;
-      console.log("🔍 sendToAPI called, endpoint:", apiEndpoint);
 
       // Only send if API endpoint is configured
       if (!apiEndpoint) {
-        console.log("⚠️ No API endpoint configured, skipping");
         return;
       }
 
@@ -87,8 +85,6 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
           end_time: endTime.toISOString(),
         };
 
-        console.log("📤 Sending to API:", apiEndpoint);
-        console.log("Payload:", payload);
 
         // Build headers with optional API key
         const headers: Record<string, string> = {
@@ -106,19 +102,8 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
         });
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error(
-            "❌ API request failed:",
-            response.status,
-            response.statusText
-          );
-          console.error("Error response:", errorText);
-          try {
-            const errorJson = JSON.parse(errorText);
-            console.error("Error details:", errorJson);
-          } catch (e) {
-            // Not JSON, already logged as text
-          }
+          setApiLogs([`Error: API request failed (${response.status})`]);
+          setIsLoadingLogs(false);
           return;
         }
 
@@ -179,18 +164,13 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
             );
           }
 
-          console.log("📋 Setting API logs, count:", formattedLogs.length);
-          console.log("First few logs:", formattedLogs.slice(0, 3));
           setApiLogs(formattedLogs);
           setIsLoadingLogs(false);
         } else {
-          console.warn("Unexpected API response format:", result);
-          console.log("Full result:", result);
           setApiLogs([]);
           setIsLoadingLogs(false);
         }
       } catch (error) {
-        console.error("Error sending to API:", error);
         setApiLogs([`Error: ${error}`]);
         setIsLoadingLogs(false);
       }
@@ -212,7 +192,6 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
     const dataHoverSub = eventBus
       ?.getStream(DataHoverEvent)
       .subscribe((event) => {
-        console.log("🎯 HOVER EVENT RECEIVED");
 
         // Extract event origin for panel info
         const eventOrigin = (event as any)?.origin;
@@ -350,13 +329,11 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
           },
         };
 
-        console.log("✅ Setting currentHover:", newEvent.panelTitle);
 
         // Update current hover widget
         setCurrentHover(newEvent);
 
         // Send to API if configured (pass eventOrigin for dashboard/org info)
-        console.log("📡 Calling sendToAPI, endpoint:", options.apiEndpoint);
         sendToAPI(newEvent, eventOrigin);
       });
 

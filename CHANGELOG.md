@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2025-10-22
+
+### Changed
+- Removed backend plugin requirement (Grafana requires Go, not Rust)
+- Plugin is now frontend-only - users provide their own API endpoint
+- Enabled source maps for better debugging
+
+### Fixed
+- Critical CVE vulnerabilities in dependencies (form-data, underscore)
+- Removed all console.log statements per Grafana guidelines
+- Fixed error handling in API requests
+
 ## [1.0.1] - 2025-10-22
 
 ### Added
