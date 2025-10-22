@@ -62,6 +62,11 @@ const config = (env: any): Configuration => {
           { from: "README.md", to: "." },
           { from: "CHANGELOG.md", to: ".", noErrorOnMissing: true },
           { from: "LICENSE", to: ".", noErrorOnMissing: true },
+          { from: "bin/grafana-plugin-api-darwin-amd64", to: "gpx_hover-hover-panel_darwin_amd64", toType: "file", noErrorOnMissing: true },
+          { from: "bin/grafana-plugin-api-darwin-arm64", to: "gpx_hover-hover-panel_darwin_arm64", toType: "file", noErrorOnMissing: true },
+          { from: "bin/grafana-plugin-api-linux-amd64", to: "gpx_hover-hover-panel_linux_amd64", toType: "file", noErrorOnMissing: true },
+          { from: "bin/grafana-plugin-api-linux-arm64", to: "gpx_hover-hover-panel_linux_arm64", toType: "file", noErrorOnMissing: true },
+          { from: "bin/grafana-plugin-api-windows-amd64.exe", to: "gpx_hover-hover-panel_windows_amd64.exe", toType: "file", noErrorOnMissing: true },
         ],
       }),
 

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2025-10-22
+
+### Added
+- **Go backend integration**: Backend binaries now included for all platforms
+  - Linux AMD64 and ARM64
+  - macOS AMD64 and ARM64
+  - Windows AMD64
+- Go backend submodule at `pkg/` directory
+- Root `go.mod` for Go module management
+- `Magefile.go` for cross-platform backend builds
+- Complete provisioning setup for demo environment
+
+### Changed
+- Plugin type changed back to backend + panel plugin
+- Webpack configuration updated to bundle Go backend binaries
+- Backend now implemented in Go (replaced Rust implementation)
+
+### Fixed
+- Backend binary naming convention for Grafana compatibility
+- Webpack binary copying configuration with explicit file types
+
 ## [1.0.2] - 2025-10-22
 
 ### Changed
