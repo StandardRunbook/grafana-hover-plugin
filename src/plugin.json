@@ -4,7 +4,7 @@
   "name": "Hover",
   "id": "hover-hover-panel",
   "backend": true,
-  "executable": "gpx_hover_hover_panel",
+  "executable": "gpx_hover-hover-panel",
   "info": {
     "keywords": [
       "hover",

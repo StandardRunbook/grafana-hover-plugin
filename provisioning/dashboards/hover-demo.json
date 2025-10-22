@@ -197,14 +197,12 @@
       },
       "id": 3,
       "options": {
-        "apiEndpoint": "http://localhost:3001/query_logs",
-        "apiKey": "",
         "timeWindowMs": 3600000,
         "maxLogs": 500,
         "maxLogLength": 10000,
         "logTruncateLength": 120
       },
-      "pluginVersion": "1.0.2",
+      "pluginVersion": "1.0.3",
       "title": "Hover Logs",
       "type": "hover-hover-panel"
     }

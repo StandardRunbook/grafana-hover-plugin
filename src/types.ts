@@ -1,6 +1,4 @@
 export interface SimpleOptions {
-  apiEndpoint: string;
-  apiKey?: string;
   timeWindowMs: number;
   maxLogs: number;
   maxLogLength: number;

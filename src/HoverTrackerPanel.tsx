@@ -8,7 +8,7 @@ import {
 import { SimpleOptions, HoverEvent } from "./types";
 import { css, cx } from "@emotion/css";
 import { useStyles2 } from "@grafana/ui";
-import { getAppEvents, config as grafanaConfig } from "@grafana/runtime";
+import { getAppEvents, config as grafanaConfig, getBackendSrv } from "@grafana/runtime";
 
 interface Props extends PanelProps<SimpleOptions> {}
 
@@ -37,16 +37,9 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
     });
   };
 
-  // Function to send metric data to configured API endpoint
+  // Function to send metric data to backend plugin
   const sendToAPI = useCallback(
     async (event: HoverEvent, eventOrigin?: any) => {
-      const apiEndpoint = options.apiEndpoint;
-
-      // Only send if API endpoint is configured
-      if (!apiEndpoint) {
-        return;
-      }
-
       try {
         // Clear old logs and show loading state
         setIsLoadingLogs(true);
@@ -85,29 +78,11 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
           end_time: endTime.toISOString(),
         };
 
-
-        // Build headers with optional API key
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-
-        if (options.apiKey) {
-          headers["Authorization"] = `Bearer ${options.apiKey}`;
-        }
-
-        const response = await fetch(apiEndpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          setApiLogs([`Error: API request failed (${response.status})`]);
-          setIsLoadingLogs(false);
-          return;
-        }
-
-        const result = await response.json();
+        // Call backend plugin resource endpoint
+        const result = await getBackendSrv().post(
+          `/api/plugins/hover-hover-panel/resources/query_logs`,
+          payload
+        );
 
         // Parse log_groups response from log analysis server
         // Expected format: { log_groups: [{ representative_logs: [...], relative_change: number }] }
@@ -176,8 +151,6 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
       }
     },
     [
-      options.apiEndpoint,
-      options.apiKey,
       options.timeWindowMs,
       options.maxLogs,
       options.maxLogLength,

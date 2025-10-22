@@ -5,22 +5,6 @@ export const addStandardOptions = (
   builder: PanelOptionsEditorBuilder<SimpleOptions>
 ) => {
   builder
-    .addTextInput({
-      path: "apiEndpoint",
-      name: "API Endpoint",
-      description: "URL endpoint to send hover data for log queries",
-      defaultValue: "http://127.0.0.1:3001/query_logs",
-    })
-    .addTextInput({
-      path: "apiKey",
-      name: "API Key",
-      description:
-        "Optional API key for authenticating requests to your log analysis API",
-      defaultValue: "",
-      settings: {
-        placeholder: "Enter your API key (optional)",
-      },
-    })
     .addNumberInput({
       path: "timeWindowMs",
       name: "Time Window (ms)",

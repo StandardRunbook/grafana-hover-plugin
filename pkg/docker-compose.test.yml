@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  clickhouse-test:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 0
+    volumes:
+      - ./clickhouse-test-config.xml:/etc/clickhouse-server/users.d/no-password.xml
+      - ./schema/clickhouse_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
