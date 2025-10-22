@@ -3,7 +3,13 @@
   "name": "Hover",
   "id": "hover-hover-panel",
   "info": {
-    "keywords": ["hover", "logs", "correlation", "troubleshooting", "analysis"],
+    "keywords": [
+      "hover",
+      "logs",
+      "correlation",
+      "troubleshooting",
+      "analysis"
+    ],
     "description": "Shows related logs when you hover over data points in other panels. Automatically correlates metrics with logs to help troubleshoot issues.",
     "author": {
       "name": "Ankil Patel",
@@ -38,8 +44,8 @@
         "path": "img/screenshot-config.png"
       }
     ],
-    "version": "%VERSION%",
-    "updated": "%TODAY%"
+    "version": "1.0.0",
+    "updated": "2025-10-22"
   },
   "dependencies": {
     "grafanaDependency": ">=9.0.0",

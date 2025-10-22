@@ -13,7 +13,10 @@
     "e2e": "pnpm exec cypress install && pnpm exec grafana-e2e run",
     "e2e:update": "pnpm exec cypress install && pnpm exec grafana-e2e run --update-screenshots",
     "server": "docker-compose up --build",
-    "sign": "npx --yes @grafana/sign-plugin@latest"
+    "sign": "npx --yes @grafana/sign-plugin@latest",
+    "version": "node scripts/version.js",
+    "package": "npm run build && zip -r hover-hover-panel-$(node -p \"require('./package.json').version\").zip dist/",
+    "release": "npm run version && npm run package"
   },
   "author": "Your Name",
   "license": "Apache-2.0",

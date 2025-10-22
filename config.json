@@ -1,0 +1,41 @@
+{
+  "plugin": {
+    "id": "hover-hover-panel",
+    "name": "Hover Tracker Panel",
+    "version": "1.0.0",
+    "description": "Grafana panel plugin that tracks hover actions across the dashboard and correlates metrics with logs",
+    "author": "Ankil Patel",
+    "email": "contact@ankilp.github.io",
+    "url": "https://ankilp.github.io",
+    "license": "Apache-2.0"
+  },
+  "build": {
+    "version": "1.0.0",
+    "buildDate": "2025-10-22T04:10:46.652Z",
+    "nodeVersion": ">=20",
+    "grafanaVersion": ">=9.0.0"
+  },
+  "api": {
+    "version": "1.0.0",
+    "endpoint": "http://127.0.0.1:3001/query_logs",
+    "method": "POST",
+    "contentType": "application/json",
+    "authentication": "Bearer token (optional)"
+  },
+  "defaults": {
+    "timeWindowMs": 3600000,
+    "maxLogs": 500,
+    "maxLogLength": 10000,
+    "logTruncateLength": 120
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StandardRunbook/grafana-hover-plugin.git",
+    "releases": "https://github.com/StandardRunbook/grafana-hover-plugin/releases"
+  },
+  "files": {
+    "plugin": "hover-hover-panel-1.0.0.zip",
+    "apiSpec": "API_SPECIFICATION.md",
+    "readme": "README.md"
+  }
+}
