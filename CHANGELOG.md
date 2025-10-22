@@ -7,16 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-10-22
+
 ### Added
-- GitHub Actions workflow for automated releases
-- Plugin validation in CI pipeline
-- Comprehensive API specification document
-- Version management scripts and configuration
+- **Backend binaries included**: Plugin now includes Rust-based backend API server for all platforms
+  - Linux AMD64 and ARM64
+  - macOS AMD64 and ARM64
+  - Windows AMD64
+- Backend plugin support with executable configuration
+- Screenshot (GIF) showing plugin in action
 
 ### Changed
-- Updated repository URLs to reflect new organization
-- Enhanced plugin metadata with sponsorship link
-- Improved documentation structure
+- Plugin type changed from frontend-only to backend + panel plugin
+- Webpack build configuration updated to include backend binaries
+- Removed developer-specific badges and jargon from README
+- Simplified README by removing development installation section
+- Updated API implementation reference to point to bundled test-api
+
+### Fixed
+- All Grafana plugin validator warnings resolved
+- Binary executable permissions set correctly for all platforms
 
 ## [1.0.0] - 2025-10-22
 

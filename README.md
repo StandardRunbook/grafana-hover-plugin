@@ -2,7 +2,7 @@
 
 [![Grafana](https://img.shields.io/badge/Grafana-9.0%2B-orange?logo=grafana)](https://grafana.com)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
+[![Version](https://img.shields.io/badge/Version-1.0.1-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
 
 **Automatically correlate metrics with logs when you hover over data points.**
 
