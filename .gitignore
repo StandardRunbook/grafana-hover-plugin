@@ -67,3 +67,5 @@ test-results/hover-panel-*.zip
 *.zip
 *.md5
 *.sha256
+
+./bin/*

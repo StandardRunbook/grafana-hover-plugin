@@ -80,7 +80,7 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
 
         // Call backend plugin resource endpoint
         const result = await getBackendSrv().post(
-          `/api/plugins/hover-panel/resources/query_logs`,
+          `/api/plugins/standardrunbook-hover-panel/resources/query_logs`,
           payload
         );
 

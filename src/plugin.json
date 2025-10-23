@@ -2,9 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "panel",
   "name": "Hover",
-  "id": "hover-panel",
+  "id": "standardrunbook-hover-panel",
   "backend": true,
-  "executable": "gpx_hover-panel",
+  "executable": "gpx_standardrunbook-hover-panel",
   "info": {
     "keywords": [
       "hover",
