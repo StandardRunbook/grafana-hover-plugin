@@ -1,14 +1,11 @@
-{
-  "version": "1.0.49",
-  "build": {
-    "time": "1761216265000",
-    "repo": "github.com/StandardRunbook/grafana-hover-plugin",
-    "branch": "main",
-    "hash": "7e6071a91777ace59f1e48300c9e9f76cc765ce8"
-  },
-  "plugin": {
-    "id": "hover-hover-panel",
-    "type": "panel",
-    "version": "1.0.49"
-  }
-}
+006cc3cb0f03e3e3a769cbad93edfa2e021a39a9e44905abf9a93e32630e37aa:internal/analyzer/kl_divergence.go
+3a4ce8acdd58374ceb04a2511e854a54b77560222fde84b1067e1516c8ad731f:internal/analyzer/kl_divergence_test.go
+2b72dbd726225254562dba246f7f52ea7e1159fa2cfbd3658d023dd48de1c8a6:internal/analyzer/log_analyzer.go
+b93c87a5774ff05209fd619fe2db3105b02c117444025df8c8184da0874be598:internal/analyzer/log_analyzer_test.go
+85e8af6f9b79072ce6d52071ac835a2aaa0f73bdae9c511dcffe945ed3bf086a:internal/api/handler.go
+2bb6980bf5f1064419f6eb3c7922b2f6428c4e324b3bce77de4120479fd0c2e5:internal/api/handler_test.go
+0fc97d02b6dd5976d1d9045da8d146a838a4d1a2cf3f4b20abc0e4d54a259772:internal/clickhouse/client.go
+d1928bac08984c80f4972058a181f86ba2167bc6faffa1a9ca2270ecb7715e68:internal/config/config.go
+dc21005e7abf2fe9abeafd23ce41b6df9a452a877b484107fd444cfdbd9ab9db:internal/plugin/plugin.go
+add9c2bb11b0083d64de241a1a37978fca90c6904bae22c583aed6481016cbc3:magefile.go
+c6f72b11efce33def5d0fd7d7e9cd2011e4c040e2f724b25e517392eb0891418:pkg/main.go
