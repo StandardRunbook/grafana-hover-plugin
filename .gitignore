@@ -75,6 +75,3 @@ hover-hover-panel/
 
 # Validator output
 validator-output.txt
-
-# Backend source (should use git submodule instead)
-pkg/
