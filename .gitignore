@@ -63,4 +63,4 @@ yarn-error.log
 
 # Playwright
 playwright-report/
-test-results/
+test-results/hover-panel-*.zip

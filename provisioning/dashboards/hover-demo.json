@@ -202,9 +202,9 @@
         "maxLogLength": 10000,
         "logTruncateLength": 120
       },
-      "pluginVersion": "1.0.3",
+      "pluginVersion": "1.0.4",
       "title": "Hover Logs",
-      "type": "hover-hover-panel"
+      "type": "hover-panel"
     }
   ],
   "schemaVersion": 39,

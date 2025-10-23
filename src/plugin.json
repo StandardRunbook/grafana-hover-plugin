@@ -2,9 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "panel",
   "name": "Hover",
-  "id": "hover-hover-panel",
+  "id": "hover-panel",
   "backend": true,
-  "executable": "gpx_hover-hover-panel",
+  "executable": "gpx_hover-panel",
   "info": {
     "keywords": [
       "hover",
@@ -41,7 +41,7 @@
         "url": "https://github.com/sponsors/ankilp"
       }
     ],
-    "version": "1.0.3",
+    "version": "1.0.4",
     "updated": "2025-10-22",
     "screenshots": [
       {
@@ -53,5 +53,11 @@
   "dependencies": {
     "grafanaDependency": ">=9.0.0",
     "plugins": []
-  }
+  },
+  "iam": {
+    "permissions": []
+  },
+  "routes": [],
+  "includes": [],
+  "roles": []
 }
