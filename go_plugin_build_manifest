@@ -1,0 +1,22 @@
+{
+  "time": 1729643400000,
+  "go": "go1.24.6",
+  "arch": "amd64",
+  "os": "linux",
+  "main": {
+    "path": "grafana-plugin-api/cmd",
+    "checksum": "",
+    "pluginID": "hover-hover-panel",
+    "version": "1.0.8"
+  },
+  "deps": [
+    {
+      "path": "github.com/grafana/grafana-plugin-sdk-go",
+      "version": "v0.281.0"
+    },
+    {
+      "path": "github.com/ClickHouse/clickhouse-go/v2",
+      "version": "v2.32.0"
+    }
+  ]
+}
