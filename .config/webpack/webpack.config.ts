@@ -6,9 +6,66 @@ import CopyWebpackPlugin from "copy-webpack-plugin";
 import ForkTsCheckerWebpackPlugin from "fork-ts-checker-webpack-plugin";
 import ESLintPlugin from "eslint-webpack-plugin";
 import LiveReloadPlugin from "webpack-livereload-plugin";
+import type { Compiler } from "webpack";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Webpack plugin to fix source maps by loading source files directly from disk
+ * and replacing the sourcesContent with the exact file content
+ */
+class FixSourceMapPlugin {
+  apply(compiler: Compiler) {
+    compiler.hooks.emit.tapAsync("FixSourceMapPlugin", (compilation, callback) => {
+      Object.keys(compilation.assets).forEach((filename) => {
+        if (filename.endsWith(".map")) {
+          const asset = compilation.assets[filename];
+          const source = asset.source().toString();
+
+          try {
+            const sourceMap = JSON.parse(source);
+
+            if (sourceMap.sourcesContent && Array.isArray(sourceMap.sourcesContent)) {
+              // Replace sourcesContent with actual file content from disk
+              sourceMap.sourcesContent = sourceMap.sourcesContent.map((content: string | null, index: number) => {
+                const sourcePath = sourceMap.sources[index];
+
+                // Only process ./src/* files
+                if (sourcePath && sourcePath.startsWith('./src/')) {
+                  const fullPath = path.resolve(__dirname, "../..", sourcePath);
+                  try {
+                    // Read the actual file content from disk
+                    const fileContent = fs.readFileSync(fullPath, 'utf-8');
+                    console.log(`Loaded ${sourcePath} from disk (${fileContent.length} bytes)`);
+                    return fileContent;
+                  } catch (e) {
+                    console.error(`Failed to read ${fullPath}:`, e);
+                    return content;
+                  }
+                }
+
+                // For non-source files (webpack runtime, externals), set to null
+                return null;
+              });
+
+              const newSource = JSON.stringify(sourceMap);
+              compilation.assets[filename] = {
+                source: () => newSource,
+                size: () => newSource.length,
+              } as any;
+            }
+          } catch (e) {
+            console.error(`Failed to process source map ${filename}:`, e);
+          }
+        }
+      });
+
+      callback();
+    });
+  }
+}
 
 const config = (env: any): Configuration => {
   const isProduction = env.production;
@@ -17,7 +74,7 @@ const config = (env: any): Configuration => {
     mode: isProduction ? "production" : "development",
     target: "web",
     entry: path.resolve(__dirname, "../../src/module.ts"),
-    devtool: isProduction ? "nosources-source-map" : "eval-source-map",
+    devtool: isProduction ? "source-map" : "eval-source-map",
     output: {
       path: path.resolve(__dirname, "../../dist"),
       filename: "module.js",
@@ -25,6 +82,14 @@ const config = (env: any): Configuration => {
         type: "amd",
       },
       clean: true,
+      devtoolModuleFilenameTemplate: (info: any) => {
+        // Use relative paths starting with ./ for source maps
+        const rel = path.relative(
+          path.resolve(__dirname, "../.."),
+          info.absoluteResourcePath
+        );
+        return `./${rel.replace(/\\/g, "/")}`;
+      },
     },
 
     externals: [
@@ -98,8 +163,7 @@ const config = (env: any): Configuration => {
         lintDirtyModulesOnly: !isProduction,
       }),
 
-      // Disabled: adding newlines directly to source files instead
-      // new FixSourceMapPlugin(),
+      new FixSourceMapPlugin(),
     ],
 
     resolve: {
