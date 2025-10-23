@@ -25,6 +25,15 @@ const config = (env: any): Configuration => {
         type: "amd",
       },
       clean: true,
+      devtoolModuleFilenameTemplate: (info: any) => {
+        // Use relative paths starting with ./ for source maps
+        // This matches what the validator expects
+        const rel = path.relative(
+          path.resolve(__dirname, "../.."),
+          info.absoluteResourcePath
+        );
+        return `./${rel.replace(/\\/g, "/")}`;
+      },
     },
 
     externals: [
