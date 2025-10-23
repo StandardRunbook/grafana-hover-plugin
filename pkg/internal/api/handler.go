@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"grafana-plugin-api/internal/analyzer"
-	"grafana-plugin-api/internal/config"
+	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/analyzer"
+	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/config"
 )
 
 type Handler struct {
