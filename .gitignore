@@ -69,3 +69,12 @@ test-results/hover-panel-*.zip
 *.sha256
 
 ./bin/*
+
+# Build output directories that shouldn't be committed
+hover-hover-panel/
+
+# Validator output
+validator-output.txt
+
+# Backend source (should use git submodule instead)
+pkg/
