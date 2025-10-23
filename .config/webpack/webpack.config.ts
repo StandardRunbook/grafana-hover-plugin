@@ -17,7 +17,7 @@ const config = (env: any): Configuration => {
     mode: isProduction ? "production" : "development",
     target: "web",
     entry: path.resolve(__dirname, "../../src/module.ts"),
-    devtool: isProduction ? "source-map" : "eval-source-map",
+    devtool: isProduction ? false : "eval-source-map",
     output: {
       path: path.resolve(__dirname, "../../dist"),
       filename: "module.js",
@@ -25,15 +25,6 @@ const config = (env: any): Configuration => {
         type: "amd",
       },
       clean: true,
-      devtoolModuleFilenameTemplate: (info: any) => {
-        // Use relative paths starting with ./ for source maps
-        // This matches what the validator expects
-        const rel = path.relative(
-          path.resolve(__dirname, "../.."),
-          info.absoluteResourcePath
-        );
-        return `./${rel.replace(/\\/g, "/")}`;
-      },
     },
 
     externals: [
