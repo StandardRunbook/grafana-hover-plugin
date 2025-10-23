@@ -8,7 +8,6 @@ import (
 	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 )
@@ -24,9 +23,9 @@ type App struct {
 	handler *api.Handler
 }
 
-// NewApp creates a new instance of the app plugin
-func NewApp(ctx context.Context, settings backend.AppInstanceSettings) (instancemgmt.Instance, error) {
-	log.DefaultLogger.Info("Creating new app instance")
+// NewPanelApp creates a new instance of the panel plugin (no datasource instance needed)
+func NewPanelApp(ctx context.Context) (*App, error) {
+	log.DefaultLogger.Info("Creating panel plugin instance")
 
 	// Load configuration
 	cfg, err := config.Load()

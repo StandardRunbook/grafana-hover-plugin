@@ -1,27 +1,30 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/StandardRunbook/grafana-hover-plugin/internal/plugin"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend/app"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/grafana/grafana-plugin-sdk-go/build"
 )
 
 func main() {
-	// Log build info
-	buildInfo, err := build.GetBuildInfo()
+	log.DefaultLogger.Info("Starting hover-hover-panel backend")
+
+	// Create a single global instance for panel plugin
+	app, err := plugin.NewPanelApp(context.Background())
 	if err != nil {
-		log.DefaultLogger.Warn("Failed to get build info", "error", err)
-	} else {
-		log.DefaultLogger.Info("Starting plugin", "version", buildInfo.Version, "pluginID", buildInfo.PluginID)
+		log.DefaultLogger.Error("Failed to create plugin", "error", err)
+		os.Exit(1)
 	}
 
 	// Start listening to requests sent from Grafana
-	// Manage automatically manages life cycle of app instances
-	if err := app.Manage("hover-hover-panel", plugin.NewApp, app.ManageOpts{}); err != nil {
+	// For panel plugins with backend, use datasource.Serve
+	if err := datasource.Serve(datasource.ServeOpts{
+		CallResourceHandler: app,
+	}); err != nil {
 		log.DefaultLogger.Error(err.Error())
 		os.Exit(1)
 	}

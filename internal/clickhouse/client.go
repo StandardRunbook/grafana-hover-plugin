@@ -29,9 +29,17 @@ type TemplateRepresentative struct {
 }
 
 func NewClient(cfg *config.ClickHouseConfig) (*Client, error) {
+	// Strip http:// or https:// prefix from URL if present
+	addr := cfg.URL
+	if hasPrefix(addr, "http://") {
+		addr = addr[7:]
+	} else if hasPrefix(addr, "https://") {
+		addr = addr[8:]
+	}
+
 	// Build connection string
 	opts := &clickhouse.Options{
-		Addr: []string{cfg.URL},
+		Addr: []string{addr},
 		Auth: clickhouse.Auth{
 			Database: cfg.Database,
 			Username: cfg.User,
