@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.48] - 2025-10-23
+
+### Fixed
+- Added Go plugin build manifest for validator compatibility
+
 ## [1.0.47] - 2025-10-23
 
 ### Fixed
