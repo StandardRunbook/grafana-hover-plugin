@@ -4,10 +4,10 @@
   "arch": "amd64",
   "os": "linux",
   "main": {
-    "path": "grafana-plugin-api/cmd",
+    "path": "github.com/StandardRunbook/grafana-hover-plugin/pkg/cmd",
     "checksum": "",
     "pluginID": "hover-hover-panel",
-    "version": "1.0.8"
+    "version": "1.0.13"
   },
   "deps": [
     {
