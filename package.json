@@ -1,6 +1,6 @@
 {
   "name": "hover-hover-panel",
-  "version": "1.0.41",
+  "version": "1.0.42",
   "description": "Grafana panel plugin that tracks hover actions across the dashboard",
   "scripts": {
     "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
@@ -14,7 +14,7 @@
     "e2e:update": "pnpm exec cypress install && pnpm exec grafana-e2e run --update-screenshots",
     "server": "docker-compose up --build",
     "sign": "npx --yes @grafana/sign-plugin@latest",
-    "version": "1.0.41",
+    "version": "1.0.42",
     "package": "npm run build && zip -r hover-panel-$(node -p \"require('./package.json').version\").zip dist/",
     "release": "npm run version && npm run package"
   },
