@@ -38,9 +38,10 @@ echo
 echo -e "${YELLOW}📝 Updating version to ${VERSION}...${NC}"
 sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
 sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" src/plugin.json
-sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" go_plugin_build_manifest
-sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" pkg/go_plugin_build_manifest
-rm -f package.json.bak src/plugin.json.bak go_plugin_build_manifest.bak pkg/go_plugin_build_manifest.bak
+# Use jq to update only main.version in manifest files (preserves deps versions)
+jq ".main.version = \"${VERSION}\"" go_plugin_build_manifest > go_plugin_build_manifest.tmp && mv go_plugin_build_manifest.tmp go_plugin_build_manifest
+jq ".main.version = \"${VERSION}\"" pkg/go_plugin_build_manifest > pkg/go_plugin_build_manifest.tmp && mv pkg/go_plugin_build_manifest.tmp pkg/go_plugin_build_manifest
+rm -f package.json.bak src/plugin.json.bak
 
 # Step 2: Commit version changes BEFORE building
 echo -e "${YELLOW}💾 Committing version update...${NC}"

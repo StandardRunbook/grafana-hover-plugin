@@ -12,11 +12,11 @@
   "deps": [
     {
       "path": "github.com/grafana/grafana-plugin-sdk-go",
-      "version": "1.0.16"
+      "version": "v0.281.0"
     },
     {
       "path": "github.com/ClickHouse/clickhouse-go/v2",
-      "version": "1.0.16"
+      "version": "v2.32.0"
     }
   ]
 }
