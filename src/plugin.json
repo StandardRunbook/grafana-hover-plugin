@@ -2,9 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "panel",
   "name": "Hover",
-  "id": "standardrunbook-hover-panel",
+  "id": "hover-hover-panel",
   "backend": true,
-  "executable": "gpx_standardrunbook-hover-panel",
+  "executable": "gpx_hover-hover-panel",
   "info": {
     "keywords": [
       "hover",
@@ -41,7 +41,7 @@
         "url": "https://github.com/sponsors/ankilp"
       }
     ],
-    "version": "1.0.7",
+    "version": "1.0.8",
     "updated": "2025-10-22",
     "screenshots": [
       {

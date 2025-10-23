@@ -204,7 +204,7 @@
       },
       "pluginVersion": "1.0.4",
       "title": "Hover Logs",
-      "type": "standardrunbook-hover-panel"
+      "type": "hover-hover-panel"
     }
   ],
   "schemaVersion": 39,
