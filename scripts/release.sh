@@ -49,6 +49,7 @@ git commit -m "Bump version to ${VERSION}" || echo "No version changes to commit
 # Step 3: Build backend with mage (AFTER committing version)
 echo -e "${YELLOW}🔨 Building backend with mage...${NC}"
 go run github.com/magefile/mage@latest buildAll
+go run github.com/magefile/mage@latest build:generateManifestFile
 
 # Step 4: Build frontend
 echo -e "${YELLOW}🔨 Building frontend...${NC}"
