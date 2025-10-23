@@ -150,7 +150,7 @@ echo
 # Step 11: Run validator before cleanup
 echo -e "${YELLOW}🔍 Running validator...${NC}"
 gh release download v${VERSION} --pattern "${PLUGIN_NAME}-${VERSION}.zip" --clobber
-npx --yes @grafana/plugin-validator@latest -sourceCodeUri https://github.com/${REPO}#v${VERSION} ${PLUGIN_NAME}-${VERSION}.zip || true
+npx --yes @grafana/plugin-validator@latest -sourceCodeUri https://github.com/${REPO}/tree/v${VERSION} ${PLUGIN_NAME}-${VERSION}.zip || true
 echo
 
 # Step 12: Cleanup release artifacts
