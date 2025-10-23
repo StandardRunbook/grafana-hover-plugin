@@ -6,8 +6,8 @@
   "main": {
     "path": "grafana-plugin-api/cmd",
     "checksum": "",
-    "pluginID": "hover-panel",
-    "version": "1.0.5"
+    "pluginID": "hover-hover-panel",
+    "version": "1.0.8"
   },
   "deps": [
     {

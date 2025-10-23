@@ -137,3 +137,12 @@ echo
 echo "Source Repository:"
 echo "https://github.com/${REPO}"
 echo
+
+# Step 11: Cleanup release artifacts
+echo -e "${YELLOW}🧹 Cleaning up release artifacts...${NC}"
+rm -f ${PLUGIN_NAME}-${VERSION}.zip
+rm -f ${PLUGIN_NAME}-${VERSION}.zip.md5
+rm -f ${PLUGIN_NAME}-${VERSION}.zip.sha256
+
+echo -e "${GREEN}✨ Cleanup complete!${NC}"
+echo
