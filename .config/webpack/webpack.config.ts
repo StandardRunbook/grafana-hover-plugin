@@ -1,10 +1,12 @@
 import type { Configuration } from "webpack";
 import path from "path";
 import { fileURLToPath } from "url";
+// @ts-ignore - No type declarations available
 import ReplaceInFileWebpackPlugin from "replace-in-file-webpack-plugin";
 import CopyWebpackPlugin from "copy-webpack-plugin";
 import ForkTsCheckerWebpackPlugin from "fork-ts-checker-webpack-plugin";
 import ESLintPlugin from "eslint-webpack-plugin";
+// @ts-ignore - No type declarations available
 import LiveReloadPlugin from "webpack-livereload-plugin";
 import type { Compiler } from "webpack";
 import fs from "fs";
