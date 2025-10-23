@@ -6,9 +6,53 @@ import CopyWebpackPlugin from "copy-webpack-plugin";
 import ForkTsCheckerWebpackPlugin from "fork-ts-checker-webpack-plugin";
 import ESLintPlugin from "eslint-webpack-plugin";
 import LiveReloadPlugin from "webpack-livereload-plugin";
+import type { Compiler } from "webpack";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Webpack plugin to fix source maps by removing extra trailing newlines
+ * that ts-loader adds to sourcesContent
+ */
+class FixSourceMapPlugin {
+  apply(compiler: Compiler) {
+    compiler.hooks.emit.tapAsync("FixSourceMapPlugin", (compilation, callback) => {
+      // Find all .map files
+      Object.keys(compilation.assets).forEach((filename) => {
+        if (filename.endsWith(".map")) {
+          const asset = compilation.assets[filename];
+          const source = asset.source().toString();
+
+          try {
+            const sourceMap = JSON.parse(source);
+
+            if (sourceMap.sourcesContent && Array.isArray(sourceMap.sourcesContent)) {
+              // Remove ONE trailing newline from each source content
+              // ts-loader adds an extra newline that doesn't exist in the original files
+              sourceMap.sourcesContent = sourceMap.sourcesContent.map((content: string | null) => {
+                if (typeof content === 'string' && content.endsWith('\n')) {
+                  return content.slice(0, -1);
+                }
+                return content;
+              });
+
+              const newSource = JSON.stringify(sourceMap);
+              compilation.assets[filename] = {
+                source: () => newSource,
+                size: () => newSource.length,
+              } as any;
+            }
+          } catch (e) {
+            console.error(`Failed to process source map ${filename}:`, e);
+          }
+        }
+      });
+
+      callback();
+    });
+  }
+}
 
 const config = (env: any): Configuration => {
   const isProduction = env.production;
@@ -97,6 +141,8 @@ const config = (env: any): Configuration => {
         extensions: [".ts", ".tsx"],
         lintDirtyModulesOnly: !isProduction,
       }),
+
+      new FixSourceMapPlugin(),
     ],
 
     resolve: {

@@ -9,5 +9,3 @@ export const plugin = new PanelPlugin<SimpleOptions>(
   addStandardOptions(builder);
   return builder;
 });
-
-

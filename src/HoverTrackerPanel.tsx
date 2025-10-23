@@ -869,5 +869,3 @@ const getStyles = () => {
     `,
   };
 };
-
-
