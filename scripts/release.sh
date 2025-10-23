@@ -49,21 +49,24 @@ git commit -m "Bump version to ${VERSION}" || echo "No version changes to commit
 # Step 3: Build backend with mage (AFTER committing version)
 echo -e "${YELLOW}🔨 Building backend with mage...${NC}"
 go run github.com/magefile/mage@latest buildAll
-go run github.com/magefile/mage@latest build:generateManifestFile
 
 # Step 4: Build frontend
 echo -e "${YELLOW}🔨 Building frontend...${NC}"
 pnpm run build
 
-# Step 5: Set executable permissions on binaries
+# Step 5: Generate Go manifest (AFTER webpack to avoid clean: true wiping it)
+echo -e "${YELLOW}📋 Generating Go plugin manifest...${NC}"
+go run github.com/magefile/mage@latest build:generateManifestFile
+
+# Step 6: Set executable permissions on binaries
 echo -e "${YELLOW}🔐 Setting executable permissions...${NC}"
 chmod +x dist/gpx_${PLUGIN_NAME}_*
 
-# Step 6: Sign the plugin
+# Step 7: Sign the plugin
 echo -e "${YELLOW}✍️  Signing plugin...${NC}"
 npx --yes @grafana/sign-plugin@latest --rootUrls http://localhost:3000
 
-# Step 6: Create plugin package
+# Step 8: Create plugin package
 echo -e "${YELLOW}📦 Creating plugin package...${NC}"
 rm -rf tmp-package
 mkdir -p tmp-package/${PLUGIN_NAME}
@@ -73,14 +76,14 @@ zip -r ../${PLUGIN_NAME}-${VERSION}.zip ${PLUGIN_NAME}
 cd ..
 rm -rf tmp-package
 
-# Step 7: Generate checksums
+# Step 9: Generate checksums
 echo -e "${YELLOW}🔒 Generating checksums...${NC}"
 MD5=$(md5sum ${PLUGIN_NAME}-${VERSION}.zip | awk '{print $1}')
 SHA256=$(shasum -a 256 ${PLUGIN_NAME}-${VERSION}.zip | awk '{print $1}')
 echo "$MD5" > ${PLUGIN_NAME}-${VERSION}.zip.md5
 echo "$SHA256" > ${PLUGIN_NAME}-${VERSION}.zip.sha256
 
-# Step 8: Tag the release commit
+# Step 10: Tag the release commit
 echo -e "${YELLOW}🏷️  Creating git tag...${NC}"
 git tag -a v${VERSION} -m "Release v${VERSION}
 
@@ -88,11 +91,11 @@ git tag -a v${VERSION} -m "Release v${VERSION}
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 
-# Step 9: Push to GitHub with tags
+# Step 11: Push to GitHub with tags
 echo -e "${YELLOW}⬆️  Pushing to GitHub...${NC}"
 git push && git push --tags
 
-# Step 10: Create GitHub release
+# Step 12: Create GitHub release
 echo -e "${YELLOW}🎉 Creating GitHub release...${NC}"
 gh release create v${VERSION} \
   --target main \
@@ -144,7 +147,13 @@ echo "Source Repository:"
 echo "https://github.com/${REPO}"
 echo
 
-# Step 11: Cleanup release artifacts
+# Step 11: Run validator before cleanup
+echo -e "${YELLOW}🔍 Running validator...${NC}"
+gh release download v${VERSION} --pattern "${PLUGIN_NAME}-${VERSION}.zip" --clobber
+npx --yes @grafana/plugin-validator@latest -sourceCodeUri file://. ${PLUGIN_NAME}-${VERSION}.zip || true
+echo
+
+# Step 12: Cleanup release artifacts
 echo -e "${YELLOW}🧹 Cleaning up release artifacts...${NC}"
 rm -f ${PLUGIN_NAME}-${VERSION}.zip
 rm -f ${PLUGIN_NAME}-${VERSION}.zip.md5
