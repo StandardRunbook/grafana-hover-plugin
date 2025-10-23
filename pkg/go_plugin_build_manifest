@@ -1,14 +1,14 @@
 {
-  "version": "1.0.48",
+  "version": "1.0.49",
   "build": {
-    "time": "1761215470000",
+    "time": "1761216265000",
     "repo": "github.com/StandardRunbook/grafana-hover-plugin",
     "branch": "main",
-    "hash": "c651a33456430e02cb6d1a2af575810c4c8d5822"
+    "hash": "7e6071a91777ace59f1e48300c9e9f76cc765ce8"
   },
   "plugin": {
     "id": "hover-hover-panel",
     "type": "panel",
-    "version": "1.0.48"
+    "version": "1.0.49"
   }
 }
