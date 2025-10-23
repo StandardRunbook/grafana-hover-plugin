@@ -50,7 +50,7 @@ chmod +x dist/gpx_${PLUGIN_NAME}_*
 
 # Step 4: Copy Go manifest before signing
 echo -e "${YELLOW}📋 Copying Go manifest...${NC}"
-cp pkg/go_plugin_build_manifest dist/
+cp go_plugin_build_manifest dist/
 
 # Step 5: Sign the plugin
 echo -e "${YELLOW}✍️  Signing plugin...${NC}"

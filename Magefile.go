@@ -6,16 +6,30 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
+	"github.com/grafana/grafana-plugin-sdk-go/build"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
 
-// Build builds the backend plugin for all platforms
-func Build() error {
+// Default target to run when none is specified
+var Default = BuildAll
+
+// BuildAll builds the backend plugin for all platforms and generates manifest
+func BuildAll() error {
 	mg.Deps(Clean)
 
+	if err := Build(); err != nil {
+		return err
+	}
+
+	return build.GenerateManifestFile()
+}
+
+// Build builds the backend plugin for all platforms
+func Build() error {
 	platforms := []struct {
 		os   string
 		arch string
@@ -50,13 +64,23 @@ func buildBinary(goos, goarch string) error {
 		output += ".exe"
 	}
 
-	return sh.RunWith(env, "go", "build", "-o", output, "./pkg/cmd")
+	// Get build info
+	buildInfo, err := build.GetBuildInfo()
+	if err != nil {
+		return fmt.Errorf("failed to get build info: %w", err)
+	}
+
+	// Build with ldflags to inject build info
+	ldflags := buildInfo.MakeLdFlags()
+
+	return sh.RunWith(env, "go", "build", "-ldflags", ldflags, "-o", output, "./pkg/cmd")
 }
 
 // Clean removes build artifacts
 func Clean() error {
 	fmt.Println("Cleaning...")
-	return sh.Rm("dist/gpx_hover-hover-panel_*")
+	os.RemoveAll("dist")
+	return os.MkdirAll("dist", 0755)
 }
 
 // BuildDev builds backend for current platform only
