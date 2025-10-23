@@ -43,11 +43,11 @@ class FixSourceMapPlugin {
                     const fileContent = fs.readFileSync(fullPath, 'utf-8');
                     const newIndex = newSources.length;
                     oldToNewIndex[oldIndex] = newIndex;
-                    // Remove ./ prefix so paths are relative to repo root (src/module.ts not ./src/module.ts)
-                    const repoRelativePath = sourcePath.replace(/^\.\//, '');
-                    newSources.push(repoRelativePath);
+                    // Make paths relative to pkg/ directory (../src/module.ts) since validator works from pkg/
+                    const pkgRelativePath = sourcePath.replace(/^\.\/src\//, '../src/');
+                    newSources.push(pkgRelativePath);
                     newSourcesContent.push(fileContent);
-                    console.log(`Loaded ${sourcePath} from disk (${fileContent.length} bytes) - mapped ${oldIndex} -> ${newIndex}, path: ${repoRelativePath}`);
+                    console.log(`Loaded ${sourcePath} from disk (${fileContent.length} bytes) - mapped ${oldIndex} -> ${newIndex}, path: ${pkgRelativePath}`);
                   } catch (e) {
                     console.error(`Failed to read ${fullPath}:`, e);
                   }
