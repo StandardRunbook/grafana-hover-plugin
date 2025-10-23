@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/config"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2"

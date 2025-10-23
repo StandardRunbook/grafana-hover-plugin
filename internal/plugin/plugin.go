@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/api"
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/config"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/api"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"

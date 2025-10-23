@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/clickhouse"
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/config"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/clickhouse"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 )
 
 type LogAnalyzer struct {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/config"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 )
 
 func TestQueryLogsValidation(t *testing.T) {

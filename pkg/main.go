@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/StandardRunbook/grafana-hover-plugin/pkg/internal/plugin"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/plugin"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend/app"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
