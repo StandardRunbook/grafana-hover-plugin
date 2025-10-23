@@ -18,7 +18,7 @@ const config = (env: any): Configuration => {
     mode: isProduction ? "production" : "development",
     target: "web",
     entry: path.resolve(__dirname, "../../src/module.ts"),
-    devtool: isProduction ? "source-map" : "eval-source-map",
+    devtool: isProduction ? "nosources-source-map" : "eval-source-map",
     output: {
       path: path.resolve(__dirname, "../../dist"),
       filename: "module.js",
