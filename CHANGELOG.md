@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.47] - 2025-10-23
+
+### Fixed
+- Backend plugin now starts successfully when ClickHouse is unavailable
+- ClickHouse URL parsing (strips http:// prefix for compatibility with driver)
+- Backend architecture changed from app.Manage to datasource.Serve for panel plugins
+- Plugin now returns mock log data when database connection fails
+
 ## [1.0.3] - 2025-10-22
 
 ### Added
