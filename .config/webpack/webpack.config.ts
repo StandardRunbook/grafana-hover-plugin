@@ -43,9 +43,11 @@ class FixSourceMapPlugin {
                     const fileContent = fs.readFileSync(fullPath, 'utf-8');
                     const newIndex = newSources.length;
                     oldToNewIndex[oldIndex] = newIndex;
-                    newSources.push(sourcePath);
+                    // Remove ./ prefix so paths are relative to repo root (src/module.ts not ./src/module.ts)
+                    const repoRelativePath = sourcePath.replace(/^\.\//, '');
+                    newSources.push(repoRelativePath);
                     newSourcesContent.push(fileContent);
-                    console.log(`Loaded ${sourcePath} from disk (${fileContent.length} bytes) - mapped index ${oldIndex} -> ${newIndex}`);
+                    console.log(`Loaded ${sourcePath} from disk (${fileContent.length} bytes) - mapped ${oldIndex} -> ${newIndex}, path: ${repoRelativePath}`);
                   } catch (e) {
                     console.error(`Failed to read ${fullPath}:`, e);
                   }
