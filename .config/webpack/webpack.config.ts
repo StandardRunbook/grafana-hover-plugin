@@ -28,11 +28,11 @@ class FixSourceMapPlugin {
             const sourceMap = JSON.parse(source);
 
             if (sourceMap.sourcesContent && Array.isArray(sourceMap.sourcesContent)) {
-              // ADD ONE trailing newline to each source content
-              // Webpack strips the final newline when embedding, we need to add it back
+              // REMOVE trailing newline that webpack adds
+              // Git stores files without final newlines, but webpack adds them
               sourceMap.sourcesContent = sourceMap.sourcesContent.map((content: string | null) => {
-                if (typeof content === 'string' && !content.endsWith('\n\n')) {
-                  return content + '\n';
+                if (typeof content === 'string' && content.endsWith('\n') && !content.endsWith('\n\n')) {
+                  return content.slice(0, -1);
                 }
                 return content;
               });
