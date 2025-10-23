@@ -1,6 +1,6 @@
 {
   "name": "hover-tracker-panel",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Grafana panel plugin that tracks hover actions across the dashboard",
   "scripts": {
     "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
