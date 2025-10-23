@@ -113,6 +113,7 @@ const config = (env: any): Configuration => {
           use: {
             loader: "swc-loader",
             options: {
+              sourceMaps: true,
               jsc: {
                 baseUrl: path.resolve(rootDir, "src"),
                 target: "es2015",
