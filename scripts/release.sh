@@ -38,9 +38,16 @@ echo
 echo -e "${YELLOW}📝 Updating version to ${VERSION}...${NC}"
 sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
 sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" src/plugin.json
-rm -f package.json.bak src/plugin.json.bak
+sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" go_plugin_build_manifest
+sed -i.bak "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" pkg/go_plugin_build_manifest
+rm -f package.json.bak src/plugin.json.bak go_plugin_build_manifest.bak pkg/go_plugin_build_manifest.bak
 
-# Step 2: Build the plugin
+# Step 2: Commit version changes BEFORE building
+echo -e "${YELLOW}💾 Committing version update...${NC}"
+git add package.json src/plugin.json go_plugin_build_manifest pkg/go_plugin_build_manifest
+git commit -m "Bump version to ${VERSION}" || echo "No version changes to commit"
+
+# Step 3: Build the plugin (AFTER committing version)
 echo -e "${YELLOW}🔨 Building plugin...${NC}"
 pnpm run build
 
@@ -73,18 +80,17 @@ SHA256=$(shasum -a 256 ${PLUGIN_NAME}-${VERSION}.zip | awk '{print $1}')
 echo "$MD5" > ${PLUGIN_NAME}-${VERSION}.zip.md5
 echo "$SHA256" > ${PLUGIN_NAME}-${VERSION}.zip.sha256
 
-# Step 8: Commit changes
-echo -e "${YELLOW}💾 Committing changes...${NC}"
-git add -A
-git commit -m "Release v${VERSION}
+# Step 8: Tag the release commit
+echo -e "${YELLOW}🏷️  Creating git tag...${NC}"
+git tag -a v${VERSION} -m "Release v${VERSION}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
+Co-Authored-By: Claude <noreply@anthropic.com>"
 
-# Step 9: Push to GitHub
+# Step 9: Push to GitHub with tags
 echo -e "${YELLOW}⬆️  Pushing to GitHub...${NC}"
-git push
+git push && git push --tags
 
 # Step 10: Create GitHub release
 echo -e "${YELLOW}🎉 Creating GitHub release...${NC}"
