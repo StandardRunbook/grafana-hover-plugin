@@ -111,21 +111,10 @@ const config = (env: any): Configuration => {
           test: /\.(ts|tsx)$/,
           exclude: /node_modules/,
           use: {
-            loader: "swc-loader",
+            loader: "ts-loader",
             options: {
-              sourceMaps: true,
-              jsc: {
-                baseUrl: path.resolve(rootDir, "src"),
-                target: "es2015",
-                loose: false,
-                externalHelpers: true,
-                parser: {
-                  syntax: "typescript",
-                  tsx: true,
-                  decorators: false,
-                  dynamicImport: true,
-                },
-              },
+              transpileOnly: false,
+              configFile: path.resolve(__dirname, "../../tsconfig.json"),
             },
           },
         },
