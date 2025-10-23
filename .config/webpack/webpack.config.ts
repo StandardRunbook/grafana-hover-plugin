@@ -28,11 +28,11 @@ class FixSourceMapPlugin {
             const sourceMap = JSON.parse(source);
 
             if (sourceMap.sourcesContent && Array.isArray(sourceMap.sourcesContent)) {
-              // Remove ONE trailing newline from each source content
-              // ts-loader adds an extra newline that doesn't exist in the original files
+              // ADD ONE trailing newline to each source content
+              // Webpack strips the final newline when embedding, we need to add it back
               sourceMap.sourcesContent = sourceMap.sourcesContent.map((content: string | null) => {
-                if (typeof content === 'string' && content.endsWith('\n')) {
-                  return content.slice(0, -1);
+                if (typeof content === 'string' && !content.endsWith('\n\n')) {
+                  return content + '\n';
                 }
                 return content;
               });
