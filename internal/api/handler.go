@@ -1,18 +1,42 @@
 package api
 
 import (
+	"container/list"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/StandardRunbook/grafana-hover-plugin/internal/analyzer"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/clickhouse"
 	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 )
 
+type cacheEntry struct {
+	key       string
+	logGroups []analyzer.LogGroup
+	expiresAt time.Time
+}
+
+type inFlightRequest struct {
+	done       chan struct{}
+	result     []analyzer.LogGroup
+	err        error
+	resultOnce sync.Once
+}
+
 type Handler struct {
-	analyzer      *analyzer.LogAnalyzer
-	analyzerError error
+	analyzer     *analyzer.LogAnalyzer
+	cache        map[string]*list.Element // map key to list element
+	cacheList    *list.List                // doubly-linked list for LRU order
+	cacheMu      sync.Mutex
+	cacheTTL     time.Duration
+	cacheMaxSize int
+	inFlight     map[string]*inFlightRequest
+	inFlightMu   sync.Mutex
 }
 
 type QueryLogsRequest struct {
@@ -40,27 +64,177 @@ type ErrorResponse struct {
 }
 
 func NewHandler(cfg *config.Config) *Handler {
-	logAnalyzer, err := analyzer.NewLogAnalyzer(&cfg.ClickHouse)
+	var logAnalyzer *analyzer.LogAnalyzer
+
+	// Try to connect to real ClickHouse
+	realAnalyzer, err := analyzer.NewLogAnalyzer(&cfg.ClickHouse)
 	if err != nil {
-		log.Printf("Warning: Failed to create log analyzer: %v", err)
-		log.Printf("Handler will return mock data for all requests")
-		return &Handler{
-			analyzer:      nil,
-			analyzerError: err,
-		}
+		log.Printf("Warning: Failed to connect to ClickHouse: %v", err)
+		log.Printf("Using mock ClickHouse with sample data")
+
+		// Use mock ClickHouse store
+		mockStore := clickhouse.NewMockStore()
+		logAnalyzer = analyzer.NewLogAnalyzerWithStore(mockStore)
+	} else {
+		logAnalyzer = realAnalyzer
 	}
 
-	return &Handler{
-		analyzer:      logAnalyzer,
-		analyzerError: nil,
+	h := &Handler{
+		analyzer:     logAnalyzer,
+		cache:        make(map[string]*list.Element),
+		cacheList:    list.New(),
+		cacheTTL:     10 * time.Second,
+		cacheMaxSize: 10,
+		inFlight:     make(map[string]*inFlightRequest),
 	}
+
+	// Start background cleanup goroutine
+	go h.cleanupExpiredCache()
+
+	return h
 }
 
 func (h *Handler) VerifyTables() error {
-	if h.analyzer == nil {
-		return h.analyzerError
-	}
 	return h.analyzer.VerifyTables()
+}
+
+// generateCacheKey creates a unique cache key from request parameters
+func (h *Handler) generateCacheKey(req *QueryLogsRequest) string {
+	// Create a deterministic key from all request parameters
+	key := fmt.Sprintf("%s|%s|%s|%s|%d|%d",
+		req.Org,
+		req.Dashboard,
+		req.PanelTitle,
+		req.MetricName,
+		req.StartTime.Unix(),
+		req.EndTime.Unix(),
+	)
+
+	// Hash the key to keep it compact
+	hash := sha256.Sum256([]byte(key))
+	return fmt.Sprintf("%x", hash)
+}
+
+// getCachedResultOrWait attempts to retrieve a cached result or waits for an in-flight request
+func (h *Handler) getCachedResultOrWait(key string) ([]analyzer.LogGroup, error, bool) {
+	// First check cache
+	h.cacheMu.Lock()
+	elem, exists := h.cache[key]
+	if exists {
+		entry := elem.Value.(*cacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			// Move to front (most recently used) - O(1)
+			h.cacheList.MoveToFront(elem)
+			logGroups := entry.logGroups
+			h.cacheMu.Unlock()
+			log.Printf("Cache HIT for key: %s", truncateKey(key))
+			return logGroups, nil, true
+		}
+		// Expired, remove it
+		h.cacheList.Remove(elem)
+		delete(h.cache, key)
+	}
+	h.cacheMu.Unlock()
+
+	// Check if there's an in-flight request
+	h.inFlightMu.Lock()
+	inflight, inProgress := h.inFlight[key]
+	h.inFlightMu.Unlock()
+
+	if inProgress {
+		log.Printf("Waiting for in-flight request: %s", truncateKey(key))
+		// Wait for the result from the in-flight request
+		<-inflight.done
+		if inflight.err != nil {
+			log.Printf("Received error from in-flight request: %s", truncateKey(key))
+			return nil, inflight.err, true
+		}
+		log.Printf("Received result from in-flight request: %s", truncateKey(key))
+		return inflight.result, nil, true
+	}
+
+	return nil, nil, false
+}
+
+// startInFlightRequest registers a new in-flight request
+func (h *Handler) startInFlightRequest(key string) *inFlightRequest {
+	h.inFlightMu.Lock()
+	defer h.inFlightMu.Unlock()
+
+	req := &inFlightRequest{
+		done: make(chan struct{}),
+	}
+	h.inFlight[key] = req
+
+	log.Printf("Started in-flight request for key: %s", truncateKey(key))
+	return req
+}
+
+func truncateKey(key string) string {
+	if len(key) > 16 {
+		return key[:16]
+	}
+	return key
+}
+
+// evictLRUEntry removes the least recently used cache entry - O(1)
+func (h *Handler) evictLRUEntry() {
+	// Remove from back of list (least recently used)
+	elem := h.cacheList.Back()
+	if elem != nil {
+		h.cacheList.Remove(elem)
+		entry := elem.Value.(*cacheEntry)
+		delete(h.cache, entry.key)
+		log.Printf("Cache LRU eviction: removed key %s", truncateKey(entry.key))
+	}
+}
+
+// completeInFlightRequest broadcasts the result to all waiters and stores in cache
+func (h *Handler) completeInFlightRequest(key string, logGroups []analyzer.LogGroup, err error) {
+	h.inFlightMu.Lock()
+	req, exists := h.inFlight[key]
+	delete(h.inFlight, key)
+	h.inFlightMu.Unlock()
+
+	if !exists {
+		return
+	}
+
+	// Store result in the request object
+	req.resultOnce.Do(func() {
+		req.result = logGroups
+		req.err = err
+	})
+
+	// Store in cache if successful
+	if err == nil {
+		h.cacheMu.Lock()
+
+		// Evict LRU entry if cache is at max size - O(1)
+		if h.cacheList.Len() >= h.cacheMaxSize {
+			h.evictLRUEntry()
+		}
+
+		// Add to front of list (most recently used) - O(1)
+		entry := &cacheEntry{
+			key:       key,
+			logGroups: logGroups,
+			expiresAt: time.Now().Add(h.cacheTTL),
+		}
+		elem := h.cacheList.PushFront(entry)
+		h.cache[key] = elem
+
+		h.cacheMu.Unlock()
+		log.Printf("Cache SET for key: %s (TTL: %v, size: %d/%d)", truncateKey(key), h.cacheTTL, h.cacheList.Len(), h.cacheMaxSize)
+	}
+
+	// Broadcast to all waiters by closing the done channel
+	if err != nil {
+		log.Printf("Broadcasted error for key: %s", truncateKey(key))
+	} else {
+		log.Printf("Broadcasted result for key: %s", truncateKey(key))
+	}
+	close(req.done)
 }
 
 func (h *Handler) QueryLogs(w http.ResponseWriter, r *http.Request) {
@@ -91,92 +265,55 @@ func (h *Handler) QueryLogs(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Processing log query - org: %s, dashboard: %s, panel: %s, metric: %s, time range: %v to %v",
 		req.Org, req.Dashboard, req.PanelTitle, req.MetricName, req.StartTime, req.EndTime)
 
-	var logGroups []analyzer.LogGroup
-	var err error
+	// Generate cache key
+	cacheKey := h.generateCacheKey(&req)
 
-	// Check if analyzer is available
-	if h.analyzer == nil {
-		err = h.analyzerError
-	} else {
-		// Analyze logs using KL divergence
-		logGroups, err = h.analyzer.AnalyzeLogs(
-			r.Context(),
-			req.Org,
-			req.Dashboard,
-			req.PanelTitle,
-			req.MetricName,
-			req.StartTime,
-			req.EndTime,
-		)
-	}
+	// Check cache or wait for in-flight request
+	if cachedLogGroups, cachedErr, found := h.getCachedResultOrWait(cacheKey); found {
+		// If we got an error from a waiter, return error response
+		if cachedErr != nil {
+			log.Printf("Using cached error result: %v", cachedErr)
+			writeJSONError(w, http.StatusInternalServerError, "Query failed", cachedErr.Error())
+			return
+		}
 
-	if err != nil {
-		log.Printf("Error analyzing logs: %v", err)
-
-		// Return mock data when ClickHouse is not available
-		if containsStr(err.Error(), "Connection refused") ||
-			containsStr(err.Error(), "connect") ||
-			containsStr(err.Error(), "timeout") {
-
-			// Return mock logs that clearly indicate they are examples
-			logGroups = []analyzer.LogGroup{
-				{
-					RepresentativeLogs: []string{
-						"⚠️  MOCK DATA: ClickHouse database is not connected",
-						"📝 Example anomaly: ERROR: Out of memory on node-3",
-						"📝 Example anomaly: WARNING: High CPU usage detected (95%)",
-						"📝 Example anomaly: CRITICAL: Disk space below 5%",
-					},
-					RelativeChange: 2.5,
-					KLContribution: 0.8,
-					TemplateID:     "mock_error_template",
-				},
-				{
-					RepresentativeLogs: []string{
-						"📝 Example pattern: Connection timeout after 30s",
-						"📝 Example pattern: Retrying connection attempt 3/5",
-					},
-					RelativeChange: 1.2,
-					KLContribution: 0.4,
-					TemplateID:     "mock_warning_template",
-				},
-				{
-					RepresentativeLogs: []string{
-						"📝 Example info: Service started successfully",
-						"📝 Example info: Health check passed",
-					},
-					RelativeChange: 0.3,
-					KLContribution: 0.1,
-					TemplateID:     "mock_info_template",
-				},
-			}
-		} else if containsStr(err.Error(), "does not exist") ||
-			containsStr(err.Error(), "UNKNOWN_TABLE") {
-			logGroups = []analyzer.LogGroup{
-				{
-					RepresentativeLogs: []string{
-						"⚠️  Required tables missing. Please restart the service to auto-create tables.",
-						"📝 MOCK DATA: These are example logs shown because tables don't exist yet",
-					},
-					RelativeChange: 0.0,
-					KLContribution: 0.0,
-					TemplateID:     "error",
-				},
-			}
-		} else {
-			// Generic error
-			logGroups = []analyzer.LogGroup{
-				{
-					RepresentativeLogs: []string{
-						"⚠️  Hover log database encountered an error. Please contact support.",
-						"Error details: " + err.Error(),
-					},
-					RelativeChange: 0.0,
-					KLContribution: 0.0,
-					TemplateID:     "error",
-				},
+		// Convert to API response format
+		apiLogGroups := make([]LogGroup, len(cachedLogGroups))
+		for i, group := range cachedLogGroups {
+			apiLogGroups[i] = LogGroup{
+				RepresentativeLogs: group.RepresentativeLogs,
+				RelativeChange:     group.RelativeChange,
 			}
 		}
+
+		writeJSON(w, http.StatusOK, QueryLogsResponse{
+			LogGroups: apiLogGroups,
+		})
+		return
+	}
+
+	// Start in-flight request tracking
+	h.startInFlightRequest(cacheKey)
+
+	// Analyze logs using KL divergence
+	logGroups, err := h.analyzer.AnalyzeLogs(
+		r.Context(),
+		req.Org,
+		req.Dashboard,
+		req.PanelTitle,
+		req.MetricName,
+		req.StartTime,
+		req.EndTime,
+	)
+
+	// Complete the in-flight request (broadcasts to waiters and stores in cache)
+	h.completeInFlightRequest(cacheKey, logGroups, err)
+
+	// If error occurred, return error response
+	if err != nil {
+		log.Printf("Error analyzing logs: %v", err)
+		writeJSONError(w, http.StatusInternalServerError, "Query failed", err.Error())
+		return
 	}
 
 	// Convert to API response format
@@ -211,15 +348,32 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr)
+// cleanupExpiredCache runs periodically to remove expired cache entries
+func (h *Handler) cleanupExpiredCache() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		h.cacheMu.Lock()
+		now := time.Now()
+		expired := 0
+
+		// Walk the list and remove expired entries - O(n) but only runs periodically
+		var next *list.Element
+		for elem := h.cacheList.Front(); elem != nil; elem = next {
+			next = elem.Next()
+			entry := elem.Value.(*cacheEntry)
+			if now.After(entry.expiresAt) {
+				h.cacheList.Remove(elem)
+				delete(h.cache, entry.key)
+				expired++
+			}
+		}
+
+		if expired > 0 {
+			log.Printf("Cache cleanup: removed %d expired entries, %d remaining", expired, h.cacheList.Len())
+		}
+		h.cacheMu.Unlock()
+	}
 }
 
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

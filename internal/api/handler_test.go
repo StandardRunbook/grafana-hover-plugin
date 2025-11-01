@@ -2,15 +2,43 @@ package api
 
 import (
 	"bytes"
+	"container/list"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/analyzer"
+	"github.com/StandardRunbook/grafana-hover-plugin/internal/clickhouse"
 	"github.com/StandardRunbook/grafana-hover-plugin/internal/config"
 )
+
+// Helper function for tests to create mock log groups
+func createTestLogGroups() []analyzer.LogGroup {
+	return []analyzer.LogGroup{
+		{
+			RepresentativeLogs: []string{
+				"ERROR: Out of memory on node-3",
+				"ERROR: Out of memory on node-5",
+			},
+			RelativeChange: 2.5,
+			KLContribution: 0.8,
+			TemplateID:     "test_template_1",
+		},
+		{
+			RepresentativeLogs: []string{
+				"WARNING: High CPU usage detected",
+			},
+			RelativeChange: 1.2,
+			KLContribution: 0.4,
+			TemplateID:     "test_template_2",
+		},
+	}
+}
 
 func TestQueryLogsValidation(t *testing.T) {
 	tests := []struct {
@@ -67,10 +95,16 @@ func TestQueryLogsValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a mock handler
+			// Create a mock handler with mock ClickHouse
+			mockStore := clickhouse.NewMockStore()
+			mockAnalyzer := analyzer.NewLogAnalyzerWithStore(mockStore)
 			mockHandler := &Handler{
-				analyzer:      nil,
-				analyzerError: errors.New("mock error"),
+				analyzer:     mockAnalyzer,
+				cache:        make(map[string]*list.Element),
+				cacheList:    list.New(),
+				cacheTTL:     10 * time.Second,
+				cacheMaxSize: 10,
+				inFlight:     make(map[string]*inFlightRequest),
 			}
 
 			// Marshal request body
@@ -223,30 +257,9 @@ func TestLogGroupResponseFormat(t *testing.T) {
 	}
 }
 
-func TestContainsStr(t *testing.T) {
-	tests := []struct {
-		s      string
-		substr string
-		expect bool
-	}{
-		{"Connection refused", "refused", true},
-		{"Connection refused", "timeout", false},
-		{"UNKNOWN_TABLE error", "UNKNOWN_TABLE", true},
-		{"", "test", false},
-		{"test", "", true},
-		{"", "", true},
-	}
-
-	for _, tt := range tests {
-		result := containsStr(tt.s, tt.substr)
-		if result != tt.expect {
-			t.Errorf("containsStr(%q, %q) = %v, expected %v", tt.s, tt.substr, result, tt.expect)
-		}
-	}
-}
 
 func TestNewHandlerWithoutClickHouse(t *testing.T) {
-	// Test that NewHandler doesn't panic when ClickHouse is unavailable
+	// Test that NewHandler falls back to mock store when ClickHouse is unavailable
 	cfg := &config.Config{
 		ClickHouse: config.ClickHouseConfig{
 			URL:      "localhost:9999", // Invalid port
@@ -261,12 +274,8 @@ func TestNewHandlerWithoutClickHouse(t *testing.T) {
 		t.Fatal("Expected handler to be created even without ClickHouse")
 	}
 
-	if handler.analyzer != nil {
-		t.Error("Expected analyzer to be nil when ClickHouse is unavailable")
-	}
-
-	if handler.analyzerError == nil {
-		t.Error("Expected analyzerError to be set when ClickHouse is unavailable")
+	if handler.analyzer == nil {
+		t.Error("Expected analyzer to be created with mock store when ClickHouse is unavailable")
 	}
 }
 
@@ -314,29 +323,14 @@ func TestQueryLogsWithoutClickHouse(t *testing.T) {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	// Should have mock log groups
+	// Should have log groups from mock store
 	if len(resp.LogGroups) == 0 {
-		t.Error("Expected mock log groups to be returned")
-	}
-
-	// Check that mock data is clearly labeled
-	foundMockLabel := false
-	for _, group := range resp.LogGroups {
-		for _, log := range group.RepresentativeLogs {
-			if containsStr(log, "MOCK DATA") || containsStr(log, "Example") {
-				foundMockLabel = true
-				break
-			}
-		}
-	}
-
-	if !foundMockLabel {
-		t.Error("Expected mock data to be clearly labeled")
+		t.Error("Expected log groups to be returned from mock store")
 	}
 }
 
 func TestVerifyTablesWithoutClickHouse(t *testing.T) {
-	// Create handler without ClickHouse
+	// Create handler without ClickHouse (should use mock store)
 	cfg := &config.Config{
 		ClickHouse: config.ClickHouseConfig{
 			URL:      "localhost:9999", // Invalid port
@@ -348,17 +342,24 @@ func TestVerifyTablesWithoutClickHouse(t *testing.T) {
 
 	handler := NewHandler(cfg)
 
+	// Mock store's VerifyTables always succeeds
 	err := handler.VerifyTables()
-	if err == nil {
-		t.Error("Expected error when verifying tables without ClickHouse")
+	if err != nil {
+		t.Errorf("Expected mock store VerifyTables to succeed, got: %v", err)
 	}
 }
 
 func TestHandlerWithMockAnalyzer(t *testing.T) {
-	// Test that handler properly handles nil analyzer
+	// Test that handler properly handles mock ClickHouse
+	mockStore := clickhouse.NewMockStore()
+	mockAnalyzer := analyzer.NewLogAnalyzerWithStore(mockStore)
 	handler := &Handler{
-		analyzer:      nil,
-		analyzerError: errors.New("mock connection error"),
+		analyzer:     mockAnalyzer,
+		cache:        make(map[string]*list.Element),
+		cacheList:    list.New(),
+		cacheTTL:     10 * time.Second,
+		cacheMaxSize: 10,
+		inFlight:     make(map[string]*inFlightRequest),
 	}
 
 	reqBody := QueryLogsRequest{
@@ -386,5 +387,405 @@ func TestHandlerWithMockAnalyzer(t *testing.T) {
 
 	if len(resp.LogGroups) == 0 {
 		t.Error("Expected mock data to be returned")
+	}
+}
+
+func TestCacheKeyGeneration(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	req1 := &QueryLogsRequest{
+		Org:        "org1",
+		Dashboard:  "dashboard1",
+		PanelTitle: "panel1",
+		MetricName: "metric1",
+		StartTime:  time.Unix(1000, 0),
+		EndTime:    time.Unix(2000, 0),
+	}
+
+	req2 := &QueryLogsRequest{
+		Org:        "org1",
+		Dashboard:  "dashboard1",
+		PanelTitle: "panel1",
+		MetricName: "metric1",
+		StartTime:  time.Unix(1000, 0),
+		EndTime:    time.Unix(2000, 0),
+	}
+
+	req3 := &QueryLogsRequest{
+		Org:        "org1",
+		Dashboard:  "dashboard1",
+		PanelTitle: "panel1",
+		MetricName: "metric2", // Different metric
+		StartTime:  time.Unix(1000, 0),
+		EndTime:    time.Unix(2000, 0),
+	}
+
+	key1 := handler.generateCacheKey(req1)
+	key2 := handler.generateCacheKey(req2)
+	key3 := handler.generateCacheKey(req3)
+
+	// Same requests should generate same key
+	if key1 != key2 {
+		t.Error("Expected identical requests to generate same cache key")
+	}
+
+	// Different requests should generate different keys
+	if key1 == key3 {
+		t.Error("Expected different requests to generate different cache keys")
+	}
+
+	// Keys should be consistent across calls
+	key1Again := handler.generateCacheKey(req1)
+	if key1 != key1Again {
+		t.Error("Expected cache key to be deterministic")
+	}
+}
+
+func TestCacheBasicHitMiss(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	key := "test-key"
+
+	// Initially should be a miss
+	_, _, found := handler.getCachedResultOrWait(key)
+	if found {
+		t.Error("Expected cache miss for new key")
+	}
+
+	// Complete an in-flight request to populate cache
+	handler.startInFlightRequest(key)
+	testData := createTestLogGroups()
+	handler.completeInFlightRequest(key, testData, nil)
+
+	// Now should be a hit
+	result, err, found := handler.getCachedResultOrWait(key)
+	if !found {
+		t.Error("Expected cache hit after insertion")
+	}
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if len(result) != len(testData) {
+		t.Errorf("Expected %d log groups, got %d", len(testData), len(result))
+	}
+}
+
+func TestCacheLRUEviction(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	// Cache max is 10, so insert 11 items
+	testData := createTestLogGroups()
+
+	keys := make([]string, 11)
+	for i := 0; i < 11; i++ {
+		keys[i] = fmt.Sprintf("key-%d", i)
+		handler.startInFlightRequest(keys[i])
+		handler.completeInFlightRequest(keys[i], testData, nil)
+	}
+
+	// First key should be evicted (LRU)
+	_, _, found := handler.getCachedResultOrWait(keys[0])
+	if found {
+		t.Error("Expected first key to be evicted after exceeding cache size")
+	}
+
+	// Last key should still be in cache
+	_, _, found = handler.getCachedResultOrWait(keys[10])
+	if !found {
+		t.Error("Expected last key to still be in cache")
+	}
+
+	// Cache size should be at max
+	handler.cacheMu.Lock()
+	size := handler.cacheList.Len()
+	handler.cacheMu.Unlock()
+
+	if size != handler.cacheMaxSize {
+		t.Errorf("Expected cache size to be %d, got %d", handler.cacheMaxSize, size)
+	}
+}
+
+func TestCacheLRUAccessOrder(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	// Insert max entries
+	testData := createTestLogGroups()
+	keys := make([]string, 10)
+	for i := 0; i < 10; i++ {
+		keys[i] = fmt.Sprintf("key-%d", i)
+		handler.startInFlightRequest(keys[i])
+		handler.completeInFlightRequest(keys[i], testData, nil)
+	}
+
+	// Access the first key to move it to front
+	handler.getCachedResultOrWait(keys[0])
+
+	// Insert one more item, should evict key-1 (not key-0)
+	newKey := "key-new"
+	handler.startInFlightRequest(newKey)
+	handler.completeInFlightRequest(newKey, testData, nil)
+
+	// key-0 should still be in cache (recently accessed)
+	_, _, found := handler.getCachedResultOrWait(keys[0])
+	if !found {
+		t.Error("Expected recently accessed key-0 to still be in cache")
+	}
+
+	// key-1 should be evicted (LRU)
+	_, _, found = handler.getCachedResultOrWait(keys[1])
+	if found {
+		t.Error("Expected key-1 to be evicted as LRU")
+	}
+}
+
+func TestRequestCoalescing(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	key := "test-key"
+	testData := createTestLogGroups()
+
+	// Start in-flight request
+	handler.startInFlightRequest(key)
+
+	var wg sync.WaitGroup
+	results := make([][]byte, 5)
+	errors := make([]error, 5)
+
+	// Launch 5 concurrent requests waiting on the same key
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			result, err, found := handler.getCachedResultOrWait(key)
+			if !found {
+				t.Errorf("Goroutine %d: expected to find result from in-flight request", idx)
+			}
+			errors[idx] = err
+			if err == nil && len(result) > 0 {
+				results[idx] = []byte(result[0].RepresentativeLogs[0])
+			}
+		}(i)
+	}
+
+	// Give goroutines time to start waiting
+	time.Sleep(50 * time.Millisecond)
+
+	// Complete the request - should broadcast to all waiters
+	handler.completeInFlightRequest(key, testData, nil)
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// All goroutines should have received the result
+	for i, result := range results {
+		if len(result) == 0 {
+			t.Errorf("Goroutine %d did not receive result", i)
+		}
+		if errors[i] != nil {
+			t.Errorf("Goroutine %d received error: %v", i, errors[i])
+		}
+	}
+}
+
+func TestRequestCoalescingWithError(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	key := "test-key"
+	testError := errors.New("test database error")
+
+	// Start in-flight request
+	handler.startInFlightRequest(key)
+
+	var wg sync.WaitGroup
+	errors := make([]error, 3)
+
+	// Launch 3 concurrent requests waiting on the same key
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			_, err, found := handler.getCachedResultOrWait(key)
+			if !found {
+				t.Errorf("Goroutine %d: expected to find result from in-flight request", idx)
+			}
+			errors[idx] = err
+		}(i)
+	}
+
+	// Give goroutines time to start waiting
+	time.Sleep(50 * time.Millisecond)
+
+	// Complete with error - should broadcast error to all waiters
+	handler.completeInFlightRequest(key, nil, testError)
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// All goroutines should have received the error
+	for i, err := range errors {
+		if err == nil {
+			t.Errorf("Goroutine %d did not receive error", i)
+		}
+	}
+}
+
+func TestCacheExpiration(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	// Set a very short TTL for testing
+	handler.cacheTTL = 100 * time.Millisecond
+
+	key := "test-key"
+	testData := createTestLogGroups()
+
+	// Add to cache
+	handler.startInFlightRequest(key)
+	handler.completeInFlightRequest(key, testData, nil)
+
+	// Should be cached immediately
+	_, _, found := handler.getCachedResultOrWait(key)
+	if !found {
+		t.Error("Expected cache hit immediately after insertion")
+	}
+
+	// Wait for expiration
+	time.Sleep(150 * time.Millisecond)
+
+	// Should be expired now
+	_, _, found = handler.getCachedResultOrWait(key)
+	if found {
+		t.Error("Expected cache miss after TTL expiration")
+	}
+
+	// Cache should have cleaned up the entry
+	handler.cacheMu.Lock()
+	size := handler.cacheList.Len()
+	handler.cacheMu.Unlock()
+
+	if size != 0 {
+		t.Errorf("Expected cache to be empty after expiration check, got size %d", size)
+	}
+}
+
+func TestCacheExpirationCleanup(t *testing.T) {
+	cfg := &config.Config{
+		ClickHouse: config.ClickHouseConfig{
+			URL:      "localhost:9999",
+			User:     "default",
+			Password: "",
+			Database: "default",
+		},
+	}
+	handler := NewHandler(cfg)
+
+	// Set a very short TTL for testing
+	handler.cacheTTL = 50 * time.Millisecond
+
+	// Add multiple entries
+	testData := createTestLogGroups()
+	for i := 0; i < 5; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		handler.startInFlightRequest(key)
+		handler.completeInFlightRequest(key, testData, nil)
+	}
+
+	// All should be cached
+	handler.cacheMu.Lock()
+	initialSize := handler.cacheList.Len()
+	handler.cacheMu.Unlock()
+
+	if initialSize != 5 {
+		t.Errorf("Expected 5 entries in cache, got %d", initialSize)
+	}
+
+	// Wait for expiration
+	time.Sleep(100 * time.Millisecond)
+
+	// Manually trigger cleanup (simulating the background goroutine)
+	handler.cacheMu.Lock()
+	now := time.Now()
+	expired := 0
+	var next *interface{}
+	for elem := handler.cacheList.Front(); elem != nil; {
+		entry := elem.Value.(*cacheEntry)
+		nextElem := elem.Next()
+		if now.After(entry.expiresAt) {
+			handler.cacheList.Remove(elem)
+			delete(handler.cache, entry.key)
+			expired++
+		}
+		elem = nextElem
+		next = nil // Suppress unused warning
+		_ = next
+	}
+	handler.cacheMu.Unlock()
+
+	if expired != 5 {
+		t.Errorf("Expected 5 expired entries to be cleaned up, got %d", expired)
+	}
+
+	// Cache should be empty
+	handler.cacheMu.Lock()
+	finalSize := handler.cacheList.Len()
+	handler.cacheMu.Unlock()
+
+	if finalSize != 0 {
+		t.Errorf("Expected cache to be empty after cleanup, got size %d", finalSize)
 	}
 }

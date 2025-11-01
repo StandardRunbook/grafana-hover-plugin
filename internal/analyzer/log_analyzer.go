@@ -11,7 +11,7 @@ import (
 )
 
 type LogAnalyzer struct {
-	clickhouse *clickhouse.Client
+	store clickhouse.Store
 }
 
 type LogGroup struct {
@@ -28,16 +28,23 @@ func NewLogAnalyzer(cfg *config.ClickHouseConfig) (*LogAnalyzer, error) {
 	}
 
 	return &LogAnalyzer{
-		clickhouse: client,
+		store: client,
 	}, nil
 }
 
+// NewLogAnalyzerWithStore creates a LogAnalyzer with a custom store (for testing/mocking)
+func NewLogAnalyzerWithStore(store clickhouse.Store) *LogAnalyzer {
+	return &LogAnalyzer{
+		store: store,
+	}
+}
+
 func (la *LogAnalyzer) Close() error {
-	return la.clickhouse.Close()
+	return la.store.Close()
 }
 
 func (la *LogAnalyzer) VerifyTables() error {
-	return la.clickhouse.VerifyTables()
+	return la.store.VerifyTables()
 }
 
 // AnalyzeLogs analyzes logs for anomalies using KL divergence
@@ -58,12 +65,12 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 		org, dashboard, panelTitle, metricName, startTime, endTime, baselineStart, baselineEnd)
 
 	// Get template counts for both windows
-	baselineCounts, err := la.clickhouse.GetTemplateCounts(ctx, org, dashboard, panelTitle, metricName, baselineStart, baselineEnd)
+	baselineCounts, err := la.store.GetTemplateCounts(ctx, org, dashboard, panelTitle, metricName, baselineStart, baselineEnd)
 	if err != nil {
 		return nil, err
 	}
 
-	currentCounts, err := la.clickhouse.GetTemplateCounts(ctx, org, dashboard, panelTitle, metricName, startTime, endTime)
+	currentCounts, err := la.store.GetTemplateCounts(ctx, org, dashboard, panelTitle, metricName, startTime, endTime)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +116,7 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 	}
 
 	// Fetch representative logs for these templates
-	representatives, err := la.clickhouse.GetRepresentativeLogs(ctx, org, dashboard, panelTitle, metricName, topTemplateIDs)
+	representatives, err := la.store.GetRepresentativeLogs(ctx, org, dashboard, panelTitle, metricName, topTemplateIDs)
 	if err != nil {
 		return nil, err
 	}

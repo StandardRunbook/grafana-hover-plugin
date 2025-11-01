@@ -66,7 +66,7 @@ func (c *Client) Close() error {
 
 // VerifyTables checks if required tables exist, creating them if missing
 func (c *Client) VerifyTables() error {
-	requiredTables := []string{"log_template_ids", "log_template_representatives"}
+	requiredTables := []string{"logs", "template_examples"}
 	var missingTables []string
 
 	for _, tableName := range requiredTables {
@@ -139,20 +139,21 @@ func (c *Client) GetTemplateCounts(ctx context.Context, org, dashboard, panelTit
 		SELECT
 			template_id,
 			count(*) as count
-		FROM log_template_ids
+		FROM logs
 		WHERE org = ?
 			AND dashboard = ?
-			AND panel_title = ?
+			AND panel_name = ?
 			AND metric_name = ?
 			AND timestamp >= ?
 			AND timestamp < ?
+			AND template_id IS NOT NULL
 		GROUP BY template_id
 	`
 
 	rows, err := c.db.QueryContext(ctx, query, org, dashboard, panelTitle, metricName, startTime, endTime)
 	if err != nil {
 		if containsError(err, "UNKNOWN_TABLE") {
-			return nil, fmt.Errorf("table 'log_template_ids' does not exist. Please restart the service to auto-create tables")
+			return nil, fmt.Errorf("table 'logs' does not exist. Please restart the service to auto-create tables")
 		}
 		return nil, err
 	}
@@ -179,20 +180,21 @@ func (c *Client) GetRepresentativeLogs(ctx context.Context, org, dashboard, pane
 	query := `
 		SELECT
 			template_id,
-			representative_logs
-		FROM log_template_representatives
+			groupArray(message) as messages
+		FROM template_examples
 		WHERE org = ?
 			AND dashboard = ?
-			AND panel_title = ?
+			AND panel_name = ?
 			AND metric_name = ?
 			AND template_id IN (?)
+		GROUP BY template_id
 	`
 
 	// ClickHouse requires array format for IN clause
 	rows, err := c.db.QueryContext(ctx, query, org, dashboard, panelTitle, metricName, templateIDs)
 	if err != nil {
 		if containsError(err, "UNKNOWN_TABLE") {
-			return nil, fmt.Errorf("table 'log_template_representatives' does not exist. Please restart the service to auto-create tables")
+			return nil, fmt.Errorf("table 'template_examples' does not exist. Please restart the service to auto-create tables")
 		}
 		return nil, err
 	}

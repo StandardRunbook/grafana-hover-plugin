@@ -1,6 +1,27 @@
 version: '3.0'
 
 services:
+  clickhouse:
+    container_name: 'clickhouse-server'
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - 8123:8123
+      - 9000:9000
+    environment:
+      - CLICKHOUSE_DB=default
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./schema/clickhouse_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   grafana:
     container_name: 'hover-tracker-panel'
     image: grafana/grafana:latest
@@ -14,4 +35,12 @@ services:
     volumes:
       - ./dist:/var/lib/grafana/plugins/hover-hover-panel
       - ./provisioning:/etc/grafana/provisioning
+      - ./config.toml:/var/lib/grafana/plugins/hover-hover-panel/config.toml
+      - ./schema:/var/lib/grafana/plugins/hover-hover-panel/schema
     user: "0"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+volumes:
+  clickhouse_data:

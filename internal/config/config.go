@@ -32,6 +32,7 @@ func Load() (*Config, error) {
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("..")
+	viper.AddConfigPath("/var/lib/grafana/plugins/hover-hover-panel")
 
 	// Set defaults
 	viper.SetDefault("server.host", "127.0.0.1")
