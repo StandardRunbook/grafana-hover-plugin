@@ -1,0 +1,9 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[clickhouse]
+url = "clickhouse:9000"
+database = "default"
+user = "default"
+password = ""
