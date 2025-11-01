@@ -3,7 +3,7 @@ host = "127.0.0.1"
 port = 8080
 
 [clickhouse]
-url = "localhost:9000"
+url = "clickhouse:9000"
 database = "default"
 user = "default"
 password = ""

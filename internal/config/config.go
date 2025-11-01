@@ -37,8 +37,10 @@ func Load() (*Config, error) {
 	// Set defaults
 	viper.SetDefault("server.host", "127.0.0.1")
 	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("clickhouse.url", "http://localhost:8123")
+	viper.SetDefault("clickhouse.url", "localhost:9000")
 	viper.SetDefault("clickhouse.database", "default")
+	viper.SetDefault("clickhouse.user", "default")
+	viper.SetDefault("clickhouse.password", "")
 
 	if err := viper.ReadInConfig(); err != nil {
 		// If config file not found, use defaults
