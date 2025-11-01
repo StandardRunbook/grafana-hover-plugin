@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -45,29 +46,54 @@ jobs:
       - name: Type check
         run: pnpm run typecheck
 
-      - name: Build plugin
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Mage
+        run: go install github.com/magefile/mage@latest
+
+      - name: Build backend binaries
+        run: mage buildAll
+
+      - name: Generate manifest
+        run: mage build:generateManifestFile
+
+      - name: Build frontend
         run: pnpm run build
 
-      - name: Validate plugin
-        run: |
-          npx @grafana/plugin-validator@latest dist/
-
-      - name: Package plugin
-        run: |
-          cd dist
-          zip -r ../hover-hover-panel-${{ github.ref_name }}.zip .
-
       - name: Sign plugin
-        if: env.GRAFANA_ACCESS_POLICY_TOKEN != ''
+        if: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN != '' }}
         run: |
           export GRAFANA_ACCESS_POLICY_TOKEN=${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
-          npx @grafana/sign-plugin@latest dist/
+          npx @grafana/sign-plugin@latest --rootUrls http://localhost:3000
+        env:
+          GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+
+      - name: Validate plugin
+        run: npx @grafana/plugin-validator@latest dist/
+
+      - name: Package plugin
+        id: package
+        run: |
+          mkdir -p hover-hover-panel
+          cp -r dist/* hover-hover-panel/
+          zip -r hover-hover-panel-${{ github.ref_name }}.zip hover-hover-panel
+          rm -rf hover-hover-panel
+          echo "artifact=hover-hover-panel-${{ github.ref_name }}.zip" >> $GITHUB_OUTPUT
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: ${{ steps.package.outputs.artifact }}
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: hover-hover-panel-${{ github.ref_name }}.zip
           generate_release_notes: true
+          make_latest: true
           body: |
             ## What's New in ${{ github.ref_name }}
             
