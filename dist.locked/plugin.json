@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "panel",
+  "name": "Hover",
+  "id": "hover-hover-panel",
+  "backend": true,
+  "executable": "gpx_hover-hover-panel",
+  "info": {
+    "keywords": [
+      "hover",
+      "logs",
+      "correlation",
+      "troubleshooting",
+      "analysis"
+    ],
+    "description": "Shows related logs when you hover over data points in other panels. Automatically correlates metrics with logs to help troubleshoot issues.",
+    "author": {
+      "name": "Ankil Patel",
+      "email": "contact@ankilp.github.io",
+      "url": "https://ankilp.github.io"
+    },
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [
+      {
+        "name": "GitHub",
+        "url": "https://github.com/StandardRunbook/grafana-hover-plugin"
+      },
+      {
+        "name": "Documentation",
+        "url": "https://github.com/StandardRunbook/grafana-hover-plugin#readme"
+      },
+      {
+        "name": "Website",
+        "url": "https://ankilp.github.io"
+      },
+      {
+        "name": "Sponsorship",
+        "url": "https://github.com/sponsors/ankilp"
+      }
+    ],
+    "version": "1.0.54",
+    "updated": "2025-10-22",
+    "screenshots": [
+      {
+        "name": "Hover panel showing logs on hover",
+        "path": "img/grafana_hover.gif"
+      }
+    ]
+  },
+  "dependencies": {
+    "grafanaDependency": ">=9.0.0",
+    "plugins": []
+  },
+  "iam": {
+    "permissions": []
+  },
+  "routes": [],
+  "includes": [],
+  "roles": []
+}

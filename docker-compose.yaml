@@ -11,7 +11,8 @@ services:
       - CLICKHOUSE_DB=default
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./schema/clickhouse_schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./schema/admin_dashboard_schema.sql:/docker-entrypoint-initdb.d/01-admin.sql
+      - ./schema/clickhouse_schema.sql:/docker-entrypoint-initdb.d/02-logs.sql
       - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/users.xml
     ulimits:
       nofile:

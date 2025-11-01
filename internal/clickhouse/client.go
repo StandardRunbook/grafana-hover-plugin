@@ -134,23 +134,31 @@ func (c *Client) createTables() error {
 }
 
 // GetTemplateCounts retrieves template ID counts for a given time window
+// Uses log-stream-centric schema: first finds relevant log streams via metric_log_hover_mv,
+// then queries logs from those streams
 func (c *Client) GetTemplateCounts(ctx context.Context, org, dashboard, panelTitle, metricName string, startTime, endTime time.Time) (map[string]uint64, error) {
 	query := `
 		SELECT
 			template_id,
 			count(*) as count
 		FROM logs
-		WHERE org = ?
-			AND dashboard = ?
-			AND panel_name = ?
-			AND metric_name = ?
+		WHERE org_id = ?
+			AND log_stream_id IN (
+				SELECT log_stream_id
+				FROM metric_log_hover_mv
+				WHERE org_id = ?
+					AND dashboard_name = ?
+					AND panel_title = ?
+					AND metric_name = ?
+					AND is_active = 1
+			)
 			AND timestamp >= ?
 			AND timestamp < ?
 			AND template_id IS NOT NULL
 		GROUP BY template_id
 	`
 
-	rows, err := c.db.QueryContext(ctx, query, org, dashboard, panelTitle, metricName, startTime, endTime)
+	rows, err := c.db.QueryContext(ctx, query, org, org, dashboard, panelTitle, metricName, startTime, endTime)
 	if err != nil {
 		if containsError(err, "UNKNOWN_TABLE") {
 			return nil, fmt.Errorf("table 'logs' does not exist. Please restart the service to auto-create tables")
@@ -172,6 +180,8 @@ func (c *Client) GetTemplateCounts(ctx context.Context, org, dashboard, panelTit
 }
 
 // GetRepresentativeLogs retrieves representative logs for specific template IDs
+// Uses log-stream-centric schema: queries template_examples filtered by log streams
+// that are relevant for the given metric
 func (c *Client) GetRepresentativeLogs(ctx context.Context, org, dashboard, panelTitle, metricName string, templateIDs []string) (map[string][]string, error) {
 	if len(templateIDs) == 0 {
 		return make(map[string][]string), nil
@@ -182,16 +192,22 @@ func (c *Client) GetRepresentativeLogs(ctx context.Context, org, dashboard, pane
 			template_id,
 			groupArray(message) as messages
 		FROM template_examples
-		WHERE org = ?
-			AND dashboard = ?
-			AND panel_name = ?
-			AND metric_name = ?
+		WHERE org_id = ?
+			AND log_stream_id IN (
+				SELECT log_stream_id
+				FROM metric_log_hover_mv
+				WHERE org_id = ?
+					AND dashboard_name = ?
+					AND panel_title = ?
+					AND metric_name = ?
+					AND is_active = 1
+			)
 			AND template_id IN (?)
 		GROUP BY template_id
 	`
 
 	// ClickHouse requires array format for IN clause
-	rows, err := c.db.QueryContext(ctx, query, org, dashboard, panelTitle, metricName, templateIDs)
+	rows, err := c.db.QueryContext(ctx, query, org, org, dashboard, panelTitle, metricName, templateIDs)
 	if err != nil {
 		if containsError(err, "UNKNOWN_TABLE") {
 			return nil, fmt.Errorf("table 'template_examples' does not exist. Please restart the service to auto-create tables")

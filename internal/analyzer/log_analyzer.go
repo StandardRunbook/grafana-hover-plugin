@@ -77,35 +77,35 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 
 	log.Printf("Found %d baseline templates, %d current templates", len(baselineCounts), len(currentCounts))
 
-	// Calculate KL divergence contributions for each template
-	klContributions := CalculateKLDivergence(currentCounts, baselineCounts)
+	// Calculate Jensen-Shannon Distance contributions for each template
+	jsContributions := CalculateJSDivergence(currentCounts, baselineCounts)
 
-	// Calculate relative changes for each template
+	// Calculate relative changes for each template (as percentages)
 	relativeChanges := CalculateRelativeChanges(currentCounts, baselineCounts)
 
-	// Sort templates by KL divergence contribution (highest first)
-	type templateKL struct {
+	// Sort templates by JS divergence contribution (highest first)
+	type templateJS struct {
 		templateID string
-		klValue    float64
+		jsValue    float64
 	}
 
-	var sortedTemplates []templateKL
-	for templateID, klValue := range klContributions {
-		sortedTemplates = append(sortedTemplates, templateKL{templateID, klValue})
+	var sortedTemplates []templateJS
+	for templateID, jsValue := range jsContributions {
+		sortedTemplates = append(sortedTemplates, templateJS{templateID, jsValue})
 	}
 
 	sort.Slice(sortedTemplates, func(i, j int) bool {
-		return sortedTemplates[i].klValue > sortedTemplates[j].klValue
+		return sortedTemplates[i].jsValue > sortedTemplates[j].jsValue
 	})
 
-	// Take top N templates with highest KL divergence
+	// Take top N templates with highest JS divergence
 	topN := 10
 	if len(sortedTemplates) > topN {
 		sortedTemplates = sortedTemplates[:topN]
 	}
 
 	if len(sortedTemplates) == 0 {
-		log.Println("No templates found with significant KL divergence")
+		log.Println("No templates found with significant divergence")
 		return []LogGroup{}, nil
 	}
 
@@ -126,12 +126,12 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 	for _, templateID := range topTemplateIDs {
 		if logs, ok := representatives[templateID]; ok {
 			relativeChange := relativeChanges[templateID]
-			klContribution := klContributions[templateID]
+			jsContribution := jsContributions[templateID]
 
 			logGroups = append(logGroups, LogGroup{
 				RepresentativeLogs: logs,
 				RelativeChange:     relativeChange,
-				KLContribution:     klContribution,
+				KLContribution:     jsContribution, // Now contains JS divergence
 				TemplateID:         templateID,
 			})
 		}
