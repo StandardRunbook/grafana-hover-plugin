@@ -63,9 +63,13 @@ jobs:
 
       - name: Validate plugin
         run: |
-          # @grafana/plugin-validator >= 0.40 wants a zip, not a dir.
+          # @grafana/plugin-validator >= 0.40 wants a zip whose root
+          # contains exactly one directory named after the plugin id.
+          # Stage the dist tree under that directory before zipping.
           PLUGIN_ID=$(node -p "require('./src/plugin.json').id")
-          (cd dist && zip -qr "../${PLUGIN_ID}.zip" .)
+          rm -rf _stage && mkdir _stage
+          cp -r dist "_stage/${PLUGIN_ID}"
+          (cd _stage && zip -qr "../${PLUGIN_ID}.zip" "${PLUGIN_ID}")
           npx @grafana/plugin-validator@latest "${PLUGIN_ID}.zip"
 
 # Cypress-based e2e job removed — the `pnpm run e2e` script depends on
