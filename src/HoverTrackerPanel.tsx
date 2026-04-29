@@ -48,9 +48,24 @@ export const HoverTrackerPanel: React.FC<Props> = (props) => {
         const metricData = event.metricData;
 
         // Prepare the payload to match log analysis server spec
-        // API expects: metric_name, start_time, end_time (ISO 8601 with Z suffix)
-        const endTime = new Date();
-        const startTime = new Date(Date.now() - options.timeWindowMs);
+        // API expects: metric_name, start_time, end_time (ISO 8601 with Z suffix).
+        //
+        // Center the query window on the *hovered* chart timestamp, not
+        // wall-clock now. Picking `Date.now()` here means hovering anywhere
+        // on the chart asks the analyzer about the present second, which
+        // defeats the whole "show me what was happening then" UX —
+        // especially on historical time ranges where "now" has no data at
+        // all. metricData.time is set from the data frame's time field at
+        // the hovered row index; point.time is the unxformed payload time.
+        // Fall back to Date.now only as a last resort for synthetic events
+        // without a chart-level timestamp.
+        const hoverTimeMs =
+          metricData?.time ??
+          (metricData?.point as any)?.time ??
+          Date.now();
+        const halfWindow = options.timeWindowMs / 2;
+        const startTime = new Date(hoverTimeMs - halfWindow);
+        const endTime = new Date(hoverTimeMs + halfWindow);
 
         // Extract metric name with better fallbacks
 

@@ -58,11 +58,21 @@ func (la *LogAnalyzer) VerifyTables() error {
 // 3. Calculate template frequency distributions for both windows (using pre-calculated template_ids)
 // 4. Compute JS divergence to find anomalous templates
 // 5. Fetch representative logs for top anomalous templates from template_examples table
+// baselineLookback is the length of the historical window the analyzer
+// compares the current (hover) window against. A long lookback captures
+// "what the stream normally looks like" so a tight current-window
+// distribution can diverge from it visibly. Adjacent same-length windows
+// (the original choice) hide gradual incidents and produce ~0 divergence
+// on a uniform stream — we couldn't tell whether the algorithm worked or
+// not. 2 hours is enough to span typical diurnal patterns without
+// sweeping in week-old templates that no longer exist.
+const baselineLookback = 2 * time.Hour
+
 func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTitle, metricName string, startTime, endTime time.Time) ([]LogGroup, error) {
-	// Calculate baseline window (same duration as current window, but before it)
-	windowDuration := endTime.Sub(startTime)
+	// Baseline = a long trailing window ending where the current window
+	// starts (no gap). The current window is whatever the caller hovered.
 	baselineEnd := startTime
-	baselineStart := baselineEnd.Add(-windowDuration)
+	baselineStart := baselineEnd.Add(-baselineLookback)
 
 	log.Printf("Analyzing logs - org: %s, dashboard: %s, panel: %s, metric: %s, current: %v to %v, baseline: %v to %v",
 		org, dashboard, panelTitle, metricName, startTime, endTime, baselineStart, baselineEnd)

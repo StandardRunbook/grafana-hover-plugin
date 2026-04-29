@@ -142,7 +142,7 @@
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 14 },
       "id": 3,
       "options": {
-        "timeWindowMs": 3600000,
+        "timeWindowMs": 60000,
         "maxLogs": 500,
         "maxLogLength": 10000,
         "logTruncateLength": 120

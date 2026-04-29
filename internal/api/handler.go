@@ -51,6 +51,14 @@ type QueryLogsRequest struct {
 type LogGroup struct {
 	RepresentativeLogs []string `json:"representative_logs"`
 	RelativeChange     float64  `json:"relative_change"`
+	// JSContribution is the template's contribution to the
+	// Jensen-Shannon divergence between the baseline and current
+	// windows. Higher = more anomalous distributional shift.
+	// Field name is `kl_contribution` for backward compatibility with
+	// existing clients; the algorithm switched from KL to JS without
+	// renaming the wire field.
+	JSContribution float64 `json:"kl_contribution"`
+	TemplateID     string  `json:"template_id"`
 }
 
 type QueryLogsResponse struct {
@@ -283,6 +291,8 @@ func (h *Handler) QueryLogs(w http.ResponseWriter, r *http.Request) {
 			apiLogGroups[i] = LogGroup{
 				RepresentativeLogs: group.RepresentativeLogs,
 				RelativeChange:     group.RelativeChange,
+				JSContribution:     group.KLContribution,
+				TemplateID:         group.TemplateID,
 			}
 		}
 
@@ -322,6 +332,8 @@ func (h *Handler) QueryLogs(w http.ResponseWriter, r *http.Request) {
 		apiLogGroups[i] = LogGroup{
 			RepresentativeLogs: group.RepresentativeLogs,
 			RelativeChange:     group.RelativeChange,
+			JSContribution:     group.KLContribution,
+			TemplateID:         group.TemplateID,
 		}
 	}
 

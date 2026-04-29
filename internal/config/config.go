@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/viper"
 )
@@ -47,12 +48,16 @@ func Load() (*Config, error) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, err
 		}
+		log.Printf("config: no file found in search paths; using defaults")
+	} else {
+		log.Printf("config: loaded from %s", viper.ConfigFileUsed())
 	}
 
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
 	}
-
+	log.Printf("config: clickhouse url=%q user=%q db=%q",
+		config.ClickHouse.URL, config.ClickHouse.User, config.ClickHouse.Database)
 	return &config, nil
 }
