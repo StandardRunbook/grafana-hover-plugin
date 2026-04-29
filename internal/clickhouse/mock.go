@@ -25,8 +25,12 @@ func (m *MockStore) GetTemplateCounts(ctx context.Context, org, dashboard, panel
 	}, nil
 }
 
-// GetRepresentativeLogs returns mock representative logs for templates
-func (m *MockStore) GetRepresentativeLogs(ctx context.Context, org, dashboard, panelTitle, metricName string, templateIDs []string) (map[string][]string, error) {
+// GetRepresentativeLogs returns mock representative logs for templates.
+// Time range parameters are accepted for interface compatibility but
+// ignored — the mock returns fixed sample lines regardless of window.
+func (m *MockStore) GetRepresentativeLogs(ctx context.Context, org, dashboard, panelTitle, metricName string, templateIDs []string, startTime, endTime time.Time) (map[string][]string, error) {
+	_ = startTime
+	_ = endTime
 	// Mock representative logs for each template
 	mockLogs := map[string][]string{
 		"error_template_1": {

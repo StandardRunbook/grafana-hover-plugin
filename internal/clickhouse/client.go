@@ -64,9 +64,12 @@ func (c *Client) Close() error {
 	return c.db.Close()
 }
 
-// VerifyTables checks if required tables exist, creating them if missing
+// VerifyTables checks if required tables exist, creating them if missing.
+// Since the `template_examples` removal, the only table we strictly need
+// is `logs` — representative messages are now queried from `logs` directly
+// for the inspected time window (see GetRepresentativeLogs).
 func (c *Client) VerifyTables() error {
-	requiredTables := []string{"logs", "template_examples"}
+	requiredTables := []string{"logs"}
 	var missingTables []string
 
 	for _, tableName := range requiredTables {
@@ -179,38 +182,63 @@ func (c *Client) GetTemplateCounts(ctx context.Context, org, dashboard, panelTit
 	return counts, rows.Err()
 }
 
-// GetRepresentativeLogs retrieves representative logs for specific template IDs
-// Uses log-stream-centric schema: queries template_examples filtered by log streams
-// that are relevant for the given metric
-func (c *Client) GetRepresentativeLogs(ctx context.Context, org, dashboard, panelTitle, metricName string, templateIDs []string) (map[string][]string, error) {
+// GetRepresentativeLogs retrieves actual log messages from the `logs` table
+// for the given template IDs, restricted to the (startTime, endTime) window
+// the user is inspecting and to log streams mapped to the metric.
+//
+// This implements the hover-content invariant: the rows returned must be
+// the actual log entries from the inspected window, never a sample drawn
+// across time. The previous implementation queried a separate
+// `template_examples` table populated by 1% sampling; that table has been
+// removed because the random sample contradicted "show me the logs that
+// were happening when this metric spiked."
+//
+// Rows per template are bounded by `messagesPerTemplate` to keep payloads
+// reasonable on bursty windows; the order is most-recent-first within each
+// template.
+func (c *Client) GetRepresentativeLogs(ctx context.Context, org, dashboard, panelTitle, metricName string, templateIDs []string, startTime, endTime time.Time) (map[string][]string, error) {
 	if len(templateIDs) == 0 {
 		return make(map[string][]string), nil
 	}
 
+	const messagesPerTemplate = 20
+
 	query := `
 		SELECT
 			template_id,
-			groupArray(message) as messages
-		FROM template_examples
-		WHERE org_id = ?
-			AND log_stream_id IN (
-				SELECT log_stream_id
-				FROM metric_log_hover_mv
-				WHERE org_id = ?
-					AND dashboard_name = ?
-					AND panel_title = ?
-					AND metric_name = ?
-					AND is_active = 1
-			)
-			AND template_id IN (?)
+			groupArray(message) AS messages
+		FROM (
+			SELECT
+				template_id,
+				message,
+				row_number() OVER (PARTITION BY template_id ORDER BY timestamp DESC) AS rn
+			FROM logs
+			WHERE org_id = ?
+				AND log_stream_id IN (
+					SELECT log_stream_id
+					FROM metric_log_hover_mv
+					WHERE org_id = ?
+						AND dashboard_name = ?
+						AND panel_title = ?
+						AND metric_name = ?
+						AND is_active = 1
+				)
+				AND template_id IN (?)
+				AND timestamp >= ?
+				AND timestamp < ?
+		)
+		WHERE rn <= ?
 		GROUP BY template_id
 	`
 
-	// ClickHouse requires array format for IN clause
-	rows, err := c.db.QueryContext(ctx, query, org, org, dashboard, panelTitle, metricName, templateIDs)
+	rows, err := c.db.QueryContext(
+		ctx, query,
+		org, org, dashboard, panelTitle, metricName,
+		templateIDs, startTime, endTime, messagesPerTemplate,
+	)
 	if err != nil {
 		if containsError(err, "UNKNOWN_TABLE") {
-			return nil, fmt.Errorf("table 'template_examples' does not exist. Please restart the service to auto-create tables")
+			return nil, fmt.Errorf("table 'logs' does not exist. Please restart the service to auto-create tables")
 		}
 		return nil, err
 	}
