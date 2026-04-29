@@ -164,10 +164,25 @@ func (h *Handler) getCachedResultOrWait(key string) ([]analyzer.LogGroup, error,
 	return nil, nil, false
 }
 
-// startInFlightRequest registers a new in-flight request
-func (h *Handler) startInFlightRequest(key string) *inFlightRequest {
+// startInFlightRequest atomically check-and-registers an in-flight
+// request for `key`. The second return is true if the caller is the
+// new owner (must run the analysis and call completeInFlightRequest)
+// and false if a request was already registered (caller should wait
+// on the returned req.done; the existing owner will broadcast).
+//
+// The previous version blindly overwrote any existing entry, which
+// orphaned earlier req.done channels — concurrent callers that
+// observed the original req in getCachedResultOrWait would block on
+// a chan that no one ever closed. Surfaces under -race / loaded
+// runners as a TestIntegrationConcurrentRequests deadlock.
+func (h *Handler) startInFlightRequest(key string) (*inFlightRequest, bool) {
 	h.inFlightMu.Lock()
 	defer h.inFlightMu.Unlock()
+
+	if existing, ok := h.inFlight[key]; ok {
+		log.Printf("In-flight already exists for key: %s (caller will wait)", truncateKey(key))
+		return existing, false
+	}
 
 	req := &inFlightRequest{
 		done: make(chan struct{}),
@@ -175,7 +190,7 @@ func (h *Handler) startInFlightRequest(key string) *inFlightRequest {
 	h.inFlight[key] = req
 
 	log.Printf("Started in-flight request for key: %s", truncateKey(key))
-	return req
+	return req, true
 }
 
 func truncateKey(key string) string {
@@ -302,10 +317,31 @@ func (h *Handler) QueryLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Start in-flight request tracking
-	h.startInFlightRequest(cacheKey)
+	// Atomically check-and-register the in-flight request. If we lost
+	// the race to another goroutine that registered first, become a
+	// waiter on the existing one rather than spinning up a duplicate
+	// analysis.
+	inflight, owner := h.startInFlightRequest(cacheKey)
+	if !owner {
+		<-inflight.done
+		if inflight.err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Query failed", inflight.err.Error())
+			return
+		}
+		apiLogGroups := make([]LogGroup, len(inflight.result))
+		for i, group := range inflight.result {
+			apiLogGroups[i] = LogGroup{
+				RepresentativeLogs: group.RepresentativeLogs,
+				RelativeChange:     group.RelativeChange,
+				JSContribution:     group.KLContribution,
+				TemplateID:         group.TemplateID,
+			}
+		}
+		writeJSON(w, http.StatusOK, QueryLogsResponse{LogGroups: apiLogGroups})
+		return
+	}
 
-	// Analyze logs using KL divergence
+	// Owner path: run the analysis and broadcast the result.
 	logGroups, err := h.analyzer.AnalyzeLogs(
 		r.Context(),
 		req.Org,
