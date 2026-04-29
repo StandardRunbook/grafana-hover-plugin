@@ -74,6 +74,8 @@ func main() {
 		"API Logs",
 		"error_rate",
 		templateIDs,
+		startTime,
+		endTime,
 	)
 	if err != nil {
 		fmt.Printf("❌ Failed to get representative logs: %v\n", err)
