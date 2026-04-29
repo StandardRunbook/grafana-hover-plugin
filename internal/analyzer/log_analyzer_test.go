@@ -5,31 +5,30 @@ import (
 	"time"
 )
 
-func TestLogAnalyzerWindowCalculation(t *testing.T) {
-	// Test that baseline window is calculated correctly
+// Pins the analyzer's baseline-window contract:
+//   • baseline ends where current starts (no gap)
+//   • baseline length is the configured baselineLookback (2h), independent
+//     of how wide the current window is — earlier behavior was
+//     same-length-as-current, which made adjacent ~60s windows on a
+//     uniform stream produce ~0 divergence everywhere
+func TestLogAnalyzerBaselineIsLongTrailing(t *testing.T) {
 	endTime := time.Now()
-	startTime := endTime.Add(-1 * time.Hour)
+	startTime := endTime.Add(-1 * time.Minute) // tight current window
 
-	windowDuration := endTime.Sub(startTime)
 	baselineEnd := startTime
-	baselineStart := baselineEnd.Add(-windowDuration)
+	baselineStart := baselineEnd.Add(-baselineLookback)
 
-	// Baseline should be the same duration as current window
-	baselineDuration := baselineEnd.Sub(baselineStart)
-	currentDuration := endTime.Sub(startTime)
-
-	if baselineDuration != currentDuration {
-		t.Errorf("Baseline duration (%v) should equal current duration (%v)", baselineDuration, currentDuration)
-	}
-
-	// Baseline should end where current starts
 	if !baselineEnd.Equal(startTime) {
 		t.Errorf("Baseline end (%v) should equal current start (%v)", baselineEnd, startTime)
 	}
 
-	// Baseline should be before current
-	if !baselineStart.Before(startTime) {
-		t.Error("Baseline start should be before current start")
+	if got := baselineEnd.Sub(baselineStart); got != baselineLookback {
+		t.Errorf("Baseline duration = %v, want %v", got, baselineLookback)
+	}
+
+	if cur := endTime.Sub(startTime); cur >= baselineEnd.Sub(baselineStart) {
+		t.Errorf("Baseline should be longer than current window; baseline=%v current=%v",
+			baselineEnd.Sub(baselineStart), cur)
 	}
 }
 

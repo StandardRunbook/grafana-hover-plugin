@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestCalculateKLDivergence(t *testing.T) {
+func TestCalculateJSDivergence(t *testing.T) {
 	tests := []struct {
 		name            string
 		currentCounts   map[string]uint64
@@ -68,34 +68,37 @@ func TestCalculateKLDivergence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := CalculateKLDivergence(tt.currentCounts, tt.baselineCounts)
+			result := CalculateJSDivergence(tt.currentCounts, tt.baselineCounts)
 
-			// Check that expected templates have non-zero KL divergence
+			// Check that expected templates have non-zero divergence contribution.
 			for _, templateID := range tt.expectNonZero {
 				if val, ok := result[templateID]; !ok || math.Abs(val) < 1e-9 {
-					t.Errorf("Expected non-zero KL divergence for %s, got %v", templateID, val)
+					t.Errorf("Expected non-zero JS divergence for %s, got %v", templateID, val)
 				}
 			}
 
-			// Check that the specified template has higher KL divergence
+			// Check that the specified template has the highest contribution.
 			if tt.expectHigherFor != "" {
-				maxKL := -math.MaxFloat64
+				maxJS := -math.MaxFloat64
 				maxTemplate := ""
-				for id, kl := range result {
-					if kl > maxKL {
-						maxKL = kl
+				for id, js := range result {
+					if js > maxJS {
+						maxJS = js
 						maxTemplate = id
 					}
 				}
 				if maxTemplate != tt.expectHigherFor {
-					t.Errorf("Expected highest KL divergence for %s, got %s (KL: %v)", tt.expectHigherFor, maxTemplate, maxKL)
+					t.Errorf("Expected highest JS divergence for %s, got %s (JS: %v)", tt.expectHigherFor, maxTemplate, maxJS)
 				}
 			}
 
-			// All values should be finite
+			// All values must be finite and non-negative (JS is bounded [0, 1]).
 			for id, val := range result {
 				if math.IsNaN(val) || math.IsInf(val, 0) {
-					t.Errorf("KL divergence for %s is not finite: %v", id, val)
+					t.Errorf("JS divergence for %s is not finite: %v", id, val)
+				}
+				if val < 0 {
+					t.Errorf("JS divergence for %s is negative: %v (JS must be >= 0)", id, val)
 				}
 			}
 		})
@@ -179,7 +182,11 @@ func TestCalculateRelativeChanges(t *testing.T) {
 	}
 }
 
-func TestCalculateKLDivergenceSymmetry(t *testing.T) {
+// JS divergence is symmetric: D_JS(P || Q) == D_JS(Q || P). KL isn't —
+// this test was originally named TestCalculateKLDivergenceSymmetry but
+// only checked finiteness, which masked the algorithm switch. Now it
+// asserts the actual symmetry property the algorithm gives us.
+func TestCalculateJSDivergenceSymmetry(t *testing.T) {
 	currentCounts := map[string]uint64{
 		"template_001": 10,
 		"template_002": 5,
@@ -189,18 +196,26 @@ func TestCalculateKLDivergenceSymmetry(t *testing.T) {
 		"template_002": 10,
 	}
 
-	kl1 := CalculateKLDivergence(currentCounts, baselineCounts)
-	kl2 := CalculateKLDivergence(baselineCounts, currentCounts)
+	js1 := CalculateJSDivergence(currentCounts, baselineCounts)
+	js2 := CalculateJSDivergence(baselineCounts, currentCounts)
 
-	// KL divergence is not symmetric, but both should produce valid results
-	if len(kl1) == 0 || len(kl2) == 0 {
-		t.Error("Both KL divergence calculations should produce results")
+	if len(js1) == 0 || len(js2) == 0 {
+		t.Fatal("Both JS divergence calculations should produce results")
 	}
 
-	// Templates with opposite changes should have opposite-signed KL contributions
-	for id := range kl1 {
-		if math.IsNaN(kl1[id]) || math.IsNaN(kl2[id]) {
-			t.Errorf("KL divergence for %s contains NaN", id)
+	const tol = 1e-9
+	for id, v1 := range js1 {
+		v2, ok := js2[id]
+		if !ok {
+			t.Errorf("template %s present in js1 but missing from js2", id)
+			continue
+		}
+		if math.IsNaN(v1) || math.IsNaN(v2) {
+			t.Errorf("JS divergence for %s contains NaN: js1=%v js2=%v", id, v1, v2)
+			continue
+		}
+		if math.Abs(v1-v2) > tol {
+			t.Errorf("JS not symmetric for %s: D(P,Q)=%v vs D(Q,P)=%v (diff %v)", id, v1, v2, math.Abs(v1-v2))
 		}
 	}
 }

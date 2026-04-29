@@ -1,3 +1,10 @@
+//go:build ignore
+// +build ignore
+
+// Manual smoke-test binary. Run with `go run test_clickhouse.go` —
+// excluded from `go test ./...` so the repo can have a clean test
+// suite without renaming this longstanding scratch tool.
+
 package main
 
 import (
@@ -74,8 +81,8 @@ func main() {
 		"API Logs",
 		"error_rate",
 		templateIDs,
-		startTime,
-		endTime,
+		time.Date(2025, 11, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 11, 1, 0, 15, 0, 0, time.UTC),
 	)
 	if err != nil {
 		fmt.Printf("❌ Failed to get representative logs: %v\n", err)

@@ -1,3 +1,9 @@
+//go:build ignore
+// +build ignore
+
+// Manual e2e smoke-test binary; excluded from `go test ./...` so the
+// suite stays clean. Run with `go run test_e2e.go`.
+
 package main
 
 import (
