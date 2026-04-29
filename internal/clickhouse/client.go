@@ -2,7 +2,9 @@ package clickhouse
 
 import (
 	"context"
+	"crypto/sha1"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -254,6 +256,121 @@ func (c *Client) GetRepresentativeLogs(ctx context.Context, org, dashboard, pane
 	}
 
 	return representatives, rows.Err()
+}
+
+// GetTemplateCountsByPrefix is GetTemplateCounts narrowed to messages whose
+// lowercase form contains `prefix`. Used by the empty-baseline relevance
+// bias in the analyzer.
+func (c *Client) GetTemplateCountsByPrefix(ctx context.Context, org, dashboard, panelTitle, metricName, prefix string, startTime, endTime time.Time) (map[string]uint64, error) {
+	query := `
+		SELECT
+			template_id,
+			count(*) as count
+		FROM logs
+		WHERE org_id = ?
+			AND log_stream_id IN (
+				SELECT log_stream_id
+				FROM metric_log_hover_mv
+				WHERE org_id = ?
+					AND dashboard_name = ?
+					AND panel_title = ?
+					AND metric_name = ?
+					AND is_active = 1
+			)
+			AND timestamp >= ?
+			AND timestamp < ?
+			AND template_id IS NOT NULL
+			AND positionCaseInsensitive(message, ?) > 0
+		GROUP BY template_id
+	`
+
+	rows, err := c.db.QueryContext(ctx, query, org, org, dashboard, panelTitle, metricName, startTime, endTime, prefix)
+	if err != nil {
+		if containsError(err, "UNKNOWN_TABLE") {
+			return nil, fmt.Errorf("table 'logs' does not exist. Please restart the service to auto-create tables")
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]uint64)
+	for rows.Next() {
+		var tc TemplateCount
+		if err := rows.Scan(&tc.TemplateID, &tc.Count); err != nil {
+			return nil, err
+		}
+		counts[tc.TemplateID] = tc.Count
+	}
+
+	return counts, rows.Err()
+}
+
+// EnsureMapping registers a (dashboard, panel, metric) → log-stream mapping
+// if one isn't already present. Idempotent via deterministic IDs +
+// ReplacingMergeTree semantics. Picks the org's busiest log_stream_id as
+// the default route — sufficient for single-stream demo orgs and a no-op
+// for orgs that already have explicit mappings.
+func (c *Client) EnsureMapping(ctx context.Context, org, dashboard, panelTitle, metricName string) error {
+	// Skip if a mapping already exists — saves the writes for the steady-state hover path.
+	var existing uint8
+	err := c.db.QueryRowContext(ctx, `
+		SELECT 1 FROM metric_log_hover_mv
+		WHERE org_id = ? AND dashboard_name = ? AND panel_title = ? AND metric_name = ? AND is_active = 1
+		LIMIT 1
+	`, org, dashboard, panelTitle, metricName).Scan(&existing)
+	if err == nil {
+		return nil
+	}
+	if err != sql.ErrNoRows {
+		return err
+	}
+
+	// Pick the org's busiest log_stream_id as the default.
+	var streamID string
+	err = c.db.QueryRowContext(ctx, `
+		SELECT log_stream_id FROM logs
+		WHERE org_id = ?
+		GROUP BY log_stream_id
+		ORDER BY count() DESC
+		LIMIT 1
+	`, org).Scan(&streamID)
+	if err == sql.ErrNoRows {
+		log.Printf("EnsureMapping: no log streams yet for org %s — skipping registration", org)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	metricID := deterministicID("metric", org, dashboard, panelTitle, metricName)
+	mappingID := deterministicID("mapping", org, dashboard, panelTitle, metricName)
+
+	if _, err := c.db.ExecContext(ctx, `
+		INSERT INTO metrics (id, org_id, dashboard_name, panel_title, metric_name)
+		VALUES (?, ?, ?, ?, ?)
+	`, metricID, org, dashboard, panelTitle, metricName); err != nil {
+		return fmt.Errorf("insert metric: %w", err)
+	}
+
+	if _, err := c.db.ExecContext(ctx, `
+		INSERT INTO metric_log_mappings (id, org_id, metric_id, log_stream_id)
+		VALUES (?, ?, ?, ?)
+	`, mappingID, org, metricID, streamID); err != nil {
+		return fmt.Errorf("insert mapping: %w", err)
+	}
+
+	log.Printf("EnsureMapping: auto-registered (%s,%s,%s,%s) → stream %s", org, dashboard, panelTitle, metricName, streamID)
+	return nil
+}
+
+func deterministicID(kind string, parts ...string) string {
+	h := sha1.New()
+	h.Write([]byte(kind))
+	for _, p := range parts {
+		h.Write([]byte{0})
+		h.Write([]byte(p))
+	}
+	return hex.EncodeToString(h.Sum(nil))[:24]
 }
 
 // Helper functions

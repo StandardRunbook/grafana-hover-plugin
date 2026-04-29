@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/StandardRunbook/grafana-hover-plugin/internal/clickhouse"
@@ -66,6 +67,13 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 	log.Printf("Analyzing logs - org: %s, dashboard: %s, panel: %s, metric: %s, current: %v to %v, baseline: %v to %v",
 		org, dashboard, panelTitle, metricName, startTime, endTime, baselineStart, baselineEnd)
 
+	// Auto-register the (dashboard, panel, metric) → log-stream mapping so
+	// adding a new panel doesn't require a manual SQL insert. Idempotent;
+	// no-op for already-mapped panels and orgs without any ingested logs.
+	if err := la.store.EnsureMapping(ctx, org, dashboard, panelTitle, metricName); err != nil {
+		log.Printf("EnsureMapping warning (continuing): %v", err)
+	}
+
 	// Get template counts for both windows
 	baselineCounts, err := la.store.GetTemplateCounts(ctx, org, dashboard, panelTitle, metricName, baselineStart, baselineEnd)
 	if err != nil {
@@ -93,10 +101,35 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 	// silent "nothing to show" in the hover panel even when the current
 	// window has interesting logs.
 	if len(baselineCounts) == 0 && len(currentCounts) > 0 {
-		log.Printf("Empty baseline; ranking all %d current templates as new (100%% shift)", len(currentCounts))
-		jsContributions = make(map[string]float64, len(currentCounts))
-		relativeChanges = make(map[string]float64, len(currentCounts))
-		for templateID, count := range currentCounts {
+		// Metric-name relevance bias: when the user hovers the CPU
+		// panel they want cpu_usage logs, not whatever template
+		// happens to dominate the stream. Try a substring-filtered
+		// recount first; only fall back to all-templates if the
+		// filtered set is empty.
+		biasedCounts := currentCounts
+		// Try the full metric name first, then progressively shorter
+		// underscore-separated segments. e.g. metric_name='error_rate'
+		// won't substring-match 'ERROR: connection...', but its first
+		// segment 'error' does. Stop at the first non-empty match.
+		for _, candidate := range biasCandidates(metricName) {
+			prefixCounts, perr := la.store.GetTemplateCountsByPrefix(
+				ctx, org, dashboard, panelTitle, metricName, candidate, startTime, endTime,
+			)
+			if perr != nil {
+				log.Printf("Metric-name bias query failed for %q (continuing): %v", candidate, perr)
+				break
+			}
+			if len(prefixCounts) > 0 {
+				log.Printf("Empty baseline + metric_name='%s' (probe='%s') → biasing to %d matching templates",
+					metricName, candidate, len(prefixCounts))
+				biasedCounts = prefixCounts
+				break
+			}
+		}
+		log.Printf("Empty baseline; ranking %d templates as new (100%% shift)", len(biasedCounts))
+		jsContributions = make(map[string]float64, len(biasedCounts))
+		relativeChanges = make(map[string]float64, len(biasedCounts))
+		for templateID, count := range biasedCounts {
 			// Use raw count as the contribution score so the existing
 			// sort-by-jsValue path picks the busiest templates first.
 			jsContributions[templateID] = float64(count)
@@ -167,6 +200,25 @@ func (la *LogAnalyzer) AnalyzeLogs(ctx context.Context, org, dashboard, panelTit
 	log.Printf("Returning %d log groups", len(logGroups))
 
 	return logGroups, nil
+}
+
+// biasCandidates returns substrings to probe in priority order: the full
+// metric_name first, then each leading segment from longest to shortest
+// (split on `_`). Empty string and the trivial 1-char fallback are
+// excluded. Stops once a probe finds matching templates.
+func biasCandidates(metricName string) []string {
+	if metricName == "" {
+		return nil
+	}
+	out := []string{metricName}
+	parts := strings.Split(metricName, "_")
+	for i := len(parts) - 1; i > 0; i-- {
+		candidate := strings.Join(parts[:i], "_")
+		if len(candidate) >= 3 {
+			out = append(out, candidate)
+		}
+	}
+	return out
 }
 
 // AnalyzeRawLogs analyzes raw logs without using pre-calculated template IDs

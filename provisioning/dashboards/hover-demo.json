@@ -1,7 +1,5 @@
 {
-  "annotations": {
-    "list": []
-  },
+  "annotations": { "list": [] },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -9,192 +7,139 @@
   "links": [],
   "panels": [
     {
-      "datasource": {
-        "type": "grafana-testdata-datasource",
-        "uid": "test-data"
-      },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": { "mode": "palette-classic" },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
             "lineInterpolation": "linear",
-            "lineWidth": 1,
+            "lineWidth": 2,
+            "fillOpacity": 12,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "showPoints": "auto",
+            "spanNulls": true,
+            "axisPlacement": "auto",
+            "scaleDistribution": { "type": "linear" }
           },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "percent"
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "id": 1,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
       },
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-testdata-datasource",
-            "uid": "test-data"
-          },
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
           "refId": "A",
-          "scenarioId": "random_walk",
-          "seriesCount": 1,
-          "alias": "cpu_usage"
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(timestamp, INTERVAL 5 SECOND) AS t, avg(toFloat64OrNull(extract(message, 'cpu_usage: ([0-9.]+)'))) AS cpu_usage FROM default.logs WHERE org_id = '1' AND message LIKE 'cpu_usage:%' AND $__timeFilter(timestamp) GROUP BY t ORDER BY t",
+          "format": 1,
+          "meta": { "timezone": "UTC" }
         }
       ],
       "title": "CPU Usage",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "grafana-testdata-datasource",
-        "uid": "test-data"
-      },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
+          "color": { "mode": "palette-classic" },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
             "lineInterpolation": "linear",
-            "lineWidth": 1,
+            "lineWidth": 2,
+            "fillOpacity": 12,
             "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "showPoints": "auto",
+            "spanNulls": true,
+            "axisPlacement": "auto",
+            "scaleDistribution": { "type": "linear" }
           },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "bytes"
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "decgbytes",
+          "min": 0
         },
         "overrides": []
       },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "id": 2,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
       },
       "targets": [
         {
-          "datasource": {
-            "type": "grafana-testdata-datasource",
-            "uid": "test-data"
-          },
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
           "refId": "A",
-          "scenarioId": "random_walk",
-          "seriesCount": 1,
-          "alias": "memory_usage"
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(timestamp, INTERVAL 5 SECOND) AS t, avg(toFloat64OrNull(extract(message, 'memory_usage: ([0-9.]+)'))) AS memory_usage FROM default.logs WHERE org_id = '1' AND message LIKE 'memory_usage:%' AND $__timeFilter(timestamp) GROUP BY t ORDER BY t",
+          "format": 1,
+          "meta": { "timezone": "UTC" }
         }
       ],
       "title": "Memory Usage",
       "type": "timeseries"
     },
     {
-      "datasource": {
-        "type": "grafana-testdata-datasource",
-        "uid": "test-data"
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "axisPlacement": "auto",
+            "scaleDistribution": { "type": "linear" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "error_rate" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
       },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 8
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 8 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
       },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "refId": "A",
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(timestamp, INTERVAL 5 SECOND) AS t, count() AS error_rate FROM default.logs WHERE org_id = '1' AND message LIKE 'ERROR%' AND $__timeFilter(timestamp) GROUP BY t ORDER BY t",
+          "format": 1,
+          "meta": { "timezone": "UTC" }
+        }
+      ],
+      "title": "Error Rate (count of ERROR logs)",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 14 },
       "id": 3,
       "options": {
         "timeWindowMs": 3600000,
@@ -202,24 +147,20 @@
         "maxLogLength": 10000,
         "logTruncateLength": 120
       },
+      "targets": [],
       "pluginVersion": "1.0.4",
-      "title": "Hover Logs",
+      "title": "Hover Logs — drill into the chart above",
       "type": "hover-hover-panel"
     }
   ],
   "schemaVersion": 39,
   "tags": ["demo", "hover"],
-  "templating": {
-    "list": []
-  },
-  "time": {
-    "from": "now-15m",
-    "to": "now"
-  },
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "Hover Plugin Demo",
   "uid": "hover-demo",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

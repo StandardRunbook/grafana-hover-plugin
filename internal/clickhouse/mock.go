@@ -68,6 +68,17 @@ func (m *MockStore) GetRepresentativeLogs(ctx context.Context, org, dashboard, p
 	return result, nil
 }
 
+// GetTemplateCountsByPrefix mirrors GetTemplateCounts; the mock has no
+// real `message` to filter against so it just returns the same map.
+func (m *MockStore) GetTemplateCountsByPrefix(ctx context.Context, org, dashboard, panelTitle, metricName, prefix string, startTime, endTime time.Time) (map[string]uint64, error) {
+	return m.GetTemplateCounts(ctx, org, dashboard, panelTitle, metricName, startTime, endTime)
+}
+
+// EnsureMapping is a no-op for the mock — it has no schema to register against.
+func (m *MockStore) EnsureMapping(ctx context.Context, org, dashboard, panelTitle, metricName string) error {
+	return nil
+}
+
 // VerifyTables always succeeds for mock store
 func (m *MockStore) VerifyTables() error {
 	return nil
