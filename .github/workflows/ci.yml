@@ -26,8 +26,9 @@ jobs:
         run: go tool cover -func=coverage.txt | tail -30
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.txt
           flags: go
           fail_ci_if_error: false
