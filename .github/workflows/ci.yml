@@ -69,6 +69,9 @@ jobs:
           PLUGIN_ID=$(node -p "require('./src/plugin.json').id")
           rm -rf _stage && mkdir _stage
           cp -r dist "_stage/${PLUGIN_ID}"
+          # Backend plugin binaries must be 0755; pnpm build copies them
+          # in 0644 in CI (host is umask 0022). Validator rejects anything else.
+          chmod 0755 "_stage/${PLUGIN_ID}"/gpx_* 2>/dev/null || true
           (cd _stage && zip -qr "../${PLUGIN_ID}.zip" "${PLUGIN_ID}")
           npx @grafana/plugin-validator@latest "${PLUGIN_ID}.zip"
 
