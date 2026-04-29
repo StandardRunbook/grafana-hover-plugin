@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: Hover
+    type: hover-hover-panel
+    uid: hover-datasource
+    access: proxy
+    isDefault: false
+    version: 1
+    editable: true
+    jsonData:
+      # Backend = clickhouse: query the analyzer pipeline's logs/templates
+      # tables directly. The clickhouse host lives on the same Docker
+      # network (service name `clickhouse`); the plugin's Go backend uses
+      # config.toml's `clickhouse.url` for the actual connection.
+      backend: clickhouse
+      clickhouseUrl: http://clickhouse:8123
+      timeout: 30
+      maxLines: 1000
+    secureJsonData:
+      # Sensitive credentials (encrypted by Grafana)
+      # basicAuthPassword: your-password
+      # apiToken: your-api-token

@@ -1,5 +1,15 @@
 version: '3.0'
 
+# Demo-stack compose file. Three services:
+#   clickhouse  — analytical store the plugin reads from
+#   grafana     — runs Grafana with the hover plugin mounted from ./dist
+#   otel-collector — tails /tmp/varied_logs.log and forwards via OTLP to
+#                    the host-side Rust log-ingest-service (port 4317)
+#
+# Prerequisite for end-to-end ingest: the Rust log-ingest-service from
+# ../log_analysis must be running on host:4317. The demo scripts in
+# ./demo verify this before they start streaming.
+
 services:
   clickhouse:
     container_name: 'clickhouse-server'
@@ -39,7 +49,24 @@ services:
       - ./provisioning:/etc/grafana/provisioning
       - ./config.toml:/var/lib/grafana/plugins/hover-hover-panel/config.toml
       - ./schema:/var/lib/grafana/plugins/hover-hover-panel/schema
+      - ./cache:/var/lib/grafana/plugins/hover-hover-panel/cache
     user: "0"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  otel-collector:
+    container_name: 'otel-collector'
+    image: otel/opentelemetry-collector-contrib:latest
+    # HOST_IP is read from the environment so the collector can reach the
+    # host-side Rust log-ingest-service via Docker Desktop's IPv4 host
+    # routing (host.docker.internal is IPv6-first on macOS and the Rust
+    # tonic 0.12 server only listens on IPv4).
+    environment:
+      - HOST_IP=${HOST_IP:-host.docker.internal}
+    volumes:
+      - ./demo/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - /tmp/varied_logs.log:/logs/varied_logs.log:ro
     depends_on:
       clickhouse:
         condition: service_healthy
