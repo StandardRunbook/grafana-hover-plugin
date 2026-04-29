@@ -1,0 +1,13 @@
+# Generated/bundled output and tracked snapshots — never lint these.
+dist/
+dist.locked/
+node_modules/
+cache/
+
+# Go build artifacts that happen to be sibling to our source tree.
+bin/
+gpx_*
+
+# Webpack and tooling output.
+*.bundle.js
+*.bundle.js.map

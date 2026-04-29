@@ -65,32 +65,8 @@ jobs:
         run: |
           npx @grafana/plugin-validator@latest dist/
 
-  e2e:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build plugin
-        run: pnpm run build
-
-      - name: Run E2E tests
-        run: pnpm run e2e
-        env:
-          GRAFANA_VERSION: latest
+# Cypress-based e2e job removed — the `pnpm run e2e` script depends on
+# cypress, which isn't a direct devDependency, and the suite was never
+# wired up beyond the @grafana/e2e scaffolding. The Playwright-based
+# end-to-end tests live in /tmp/pwtest and are run against a live demo
+# stack; reintroduce a real e2e CI job once those land in the repo.
