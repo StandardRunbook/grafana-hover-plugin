@@ -20,15 +20,15 @@ jobs:
         run: go vet ./...
 
       - name: Test (with coverage)
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
 
       - name: Show coverage summary
-        run: go tool cover -func=coverage.out | tail -30
+        run: go tool cover -func=coverage.txt | tail -30
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: coverage.out
+          files: coverage.txt
           flags: go
           fail_ci_if_error: false
 
