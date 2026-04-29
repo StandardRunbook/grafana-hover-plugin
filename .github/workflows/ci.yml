@@ -68,8 +68,31 @@ jobs:
       - name: Run tests
         run: pnpm run test:ci
 
-      - name: Build plugin
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build plugin (frontend)
         run: pnpm run build
+
+      - name: Build plugin (backend, all platforms)
+        # plugin.json's `executable: gpx_hover-hover-panel` requires the
+        # backend binary set in the archive. `pnpm run build` only does
+        # webpack, so cross-compile here for the five platforms Grafana
+        # supports. Mode 0755 satisfies the validator's perm check.
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            os=${target%/*}
+            arch=${target#*/}
+            ext=""
+            [ "$os" = "windows" ] && ext=".exe"
+            out="dist/gpx_hover-hover-panel_${os}_${arch}${ext}"
+            GOOS=$os GOARCH=$arch go build -o "$out" ./pkg
+            chmod 0755 "$out"
+          done
+          ls -la dist/gpx_*
 
       - name: Validate plugin
         run: |
