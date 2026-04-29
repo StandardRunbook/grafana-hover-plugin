@@ -98,7 +98,9 @@ const config = (env: any): Configuration => {
       library: {
         type: "amd",
       },
-      clean: true,
+      clean: {
+        keep: /(schema|cache|gpx_.*|config\.toml)/,
+      },
       devtoolModuleFilenameTemplate: (info: any) => {
         // Use relative paths starting with ./ for source maps
         const rel = path.relative(
@@ -134,6 +136,12 @@ const config = (env: any): Configuration => {
       "@grafana/data",
       /^@grafana\/.*/,
     ],
+
+    optimization: {
+      // Disable code splitting to create a single bundle
+      splitChunks: false,
+      runtimeChunk: false,
+    },
 
     plugins: [
       new CopyWebpackPlugin({

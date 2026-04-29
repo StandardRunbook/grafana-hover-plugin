@@ -75,3 +75,11 @@ hover-hover-panel/
 
 # Validator output
 validator-output.txt
+# Build artifacts (Go binaries, plugin SDK CLIs)
+/bin/
+/server
+/dist.locked/
+
+# Local runtime caches and scratch test fixtures
+/cache/
+/test-data/

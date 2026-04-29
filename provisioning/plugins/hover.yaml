@@ -1,0 +1,12 @@
+apiVersion: 1
+
+plugins:
+  - type: hover-hover-panel
+    disabled: false
+    jsonData:
+      # Plugin is configured via environment variables
+      # See docker-compose.yaml for backend configuration:
+      # - HOVER_BACKEND
+      # - HOVER_LOKI_URL
+      # - HOVER_CLICKHOUSE_URL
+      # - HOVER_ELASTICSEARCH_URL
