@@ -19,8 +19,18 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test -race ./...
+      - name: Test (with coverage)
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Show coverage summary
+        run: go tool cover -func=coverage.out | tail -30
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          flags: go
+          fail_ci_if_error: false
 
       - name: Build backend
         run: go build ./...

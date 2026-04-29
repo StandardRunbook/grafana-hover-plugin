@@ -1,5 +1,8 @@
 # Hover - Grafana Panel Plugin
 
+[![CI](https://github.com/StandardRunbook/grafana-hover-plugin/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/StandardRunbook/grafana-hover-plugin/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/StandardRunbook/grafana-hover-plugin/branch/main/graph/badge.svg)](https://codecov.io/gh/StandardRunbook/grafana-hover-plugin)
+[![Go Report Card](https://goreportcard.com/badge/github.com/StandardRunbook/grafana-hover-plugin)](https://goreportcard.com/report/github.com/StandardRunbook/grafana-hover-plugin)
 [![Grafana](https://img.shields.io/badge/Grafana-9.0%2B-orange?logo=grafana)](https://grafana.com)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/Version-1.0.1-brightgreen)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
