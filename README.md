@@ -7,39 +7,29 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Latest release](https://img.shields.io/github/v/release/StandardRunbook/grafana-hover-plugin?display_name=tag&sort=semver)](https://github.com/StandardRunbook/grafana-hover-plugin/releases)
 
-**Automatically correlate metrics with logs when you hover over data points.**
+A Grafana panel plugin that shows logs from the same time window as the
+metric you're hovering on. When the cursor moves over a data point in any
+chart on the dashboard, the panel sends the metric name, dashboard, panel
+title, and time window to a configured log analysis API and renders the
+returned log groups.
 
-Hover is a Grafana panel plugin that displays related logs when you hover over metrics in other panels on your dashboard. It helps you troubleshoot issues faster by automatically correlating your time-series data with relevant logs from the same time window.
+The repo also ships a Go backend (`pkg/main.go` → `internal/`) that
+implements the API on top of ClickHouse, with Jensen-Shannon divergence
+analytics over per-window template histograms.
 
+## How it works
 
-> **🚀 Quick Start**: Add the Hover panel to your dashboard, configure your API endpoint, and start hovering over data points to see correlated logs instantly!
+1. Add the Hover panel to a dashboard.
+2. Set the API endpoint in the panel options.
+3. Hover any chart. The panel reads the metric name, the panel title,
+   the dashboard name, and the cursor's chart-time, then POSTs them to
+   the API.
+4. The API returns log groups; the panel renders them ranked by
+   relevance and tagged with a percent-change-from-baseline indicator.
 
-## Features
-
-- **Automatic Log Correlation**: Hover over any data point on your dashboard and instantly see related logs
-- **Zero Configuration for Viewing**: Just hover - no clicking required
-- **API Integration**: Sends hover context (metric name, time range, panel, dashboard) to your log analysis API
-- **Smart Time Windows**: Queries logs within a configurable time window around the hover point
-- **Expandable Log Entries**: Long log messages are automatically truncated with click-to-expand
-- **Performance Optimized**: Built-in limits for log count and message length
-- **Clean UI**: Maximizes space for logs with minimal chrome
-
-## Use Cases
-
-- **Debugging Production Issues**: Quickly correlate metric spikes with error logs
-- **Root Cause Analysis**: See what was happening in your logs when metrics changed
-- **Incident Response**: Speed up investigation by linking metrics and logs in real-time
-- **Performance Troubleshooting**: Find log entries related to slow response times or high resource usage
-
-## How It Works
-
-1. Add the Hover panel to your Grafana dashboard
-2. Configure the panel with your log analysis API endpoint
-3. Hover over any data point in other panels on the dashboard
-4. The Hover panel automatically:
-   - Captures the metric name, time, panel title, and dashboard name
-   - Queries your API for related logs in that time window
-   - Displays the logs grouped by relevance with change indicators
+See the [demo bundle](demo/) for an end-to-end script that brings up
+ClickHouse + Grafana + the OTel-fed ingest pipeline and lands on a live
+dashboard with a pre-seeded incident.
 
 ## Installation
 
@@ -70,37 +60,16 @@ grafana-cli plugins install hover-hover-panel
 
 ## Configuration
 
-The Hover panel is configured through the panel editor UI:
+Set in the panel editor:
 
-### Required Settings
-
-**API Endpoint** (required)
-- The URL of your log analysis API endpoint
-- Example: `http://127.0.0.1:3001/query_logs`
-- The API receives POST requests with hover context
-
-### Optional Settings
-
-**API Key** (optional)
-- API key for authenticating requests to your log analysis API
-- If provided, sent as `Authorization: Bearer <api-key>` header
-- Leave empty if your API doesn't require authentication
-
-**Time Window (ms)** (default: 3600000 = 1 hour)
-- How far back to query logs from the hover time
-- Adjust based on your log retention and use case
-
-**Max Logs** (default: 500)
-- Maximum number of log entries to display
-- Prevents performance issues with large result sets
-
-**Max Log Length** (default: 10000)
-- Maximum characters per log entry
-- Logs longer than this are truncated
-
-**Log Truncate Length** (default: 120)
-- Character threshold for expandable logs
-- Logs longer than this show expand/collapse buttons
+| Setting               | Default         | Notes                                                                |
+| --------------------- | --------------- | -------------------------------------------------------------------- |
+| API Endpoint          | (required)      | URL of the log analysis API. Receives `POST /` with the JSON below. |
+| API Key               | empty           | Sent as `Authorization: Bearer <key>` if non-empty.                  |
+| Time Window (ms)      | 60000           | Width of the window centered on the hover time.                      |
+| Max Logs              | 500             | Cap on log entries rendered.                                         |
+| Max Log Length        | 10000           | Per-entry character cap; over-cap entries truncate.                  |
+| Log Truncate Length   | 120             | Per-entry threshold for the expand/collapse toggle.                  |
 
 ## API Integration
 
@@ -154,34 +123,19 @@ The panel color-codes log groups based on the `relative_change` value:
 - 🟢 Green: < -10% decrease (improvement)
 - ⚪ White: -10% to 10% (neutral)
 
-## Example API Implementation
-
-For a complete reference implementation, see the `test-api` directory in the repository.
-
-## Usage Tips
-
-### Enable Shared Crosshair
-For the best experience, enable **shared crosshair** in your dashboard settings:
-1. Dashboard Settings → General
-2. Enable "Shared crosshair"
-3. This synchronizes hover events across all panels
-
-### Panel Placement
-- Add the Hover panel to a dedicated row at the bottom of your dashboard
-- Or use a split view with metrics on the left, Hover panel on the right
-- The panel automatically updates as you hover over any other panel
-
-### Performance Tuning
-- Adjust **Time Window** based on your needs (smaller = faster queries)
-- Set **Max Logs** to limit result size
-- Use **Log Truncate Length** to keep the UI clean
-
+A reference API implementation backed by ClickHouse lives under
+`pkg/` + `internal/`. The Go backend reads templates that the
+[log_analysis](https://github.com/StandardRunbook/log_analysis) ingest
+service has already written and computes JS divergence over per-window
+template histograms.
 
 ## Requirements
 
-- **Grafana**: 9.0.0 or higher
-- **API Backend**: You need to provide your own log analysis API
-- **CORS**: Your API must allow requests from your Grafana domain
+- Grafana 9.0+.
+- A log analysis API at the configured endpoint. The bundled Go backend
+  uses ClickHouse; supply your own if you'd rather hit Loki / ES / etc.
+- The dashboard's "Shared crosshair" setting on, so hover events fire
+  on all panels.
 
 ## Troubleshooting
 
