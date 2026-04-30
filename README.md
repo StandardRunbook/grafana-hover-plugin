@@ -27,9 +27,10 @@ analytics over per-window template histograms.
 4. The API returns log groups; the panel renders them ranked by
    relevance and tagged with a percent-change-from-baseline indicator.
 
-See the [demo bundle](demo/) for an end-to-end script that brings up
-ClickHouse + Grafana + the OTel-fed ingest pipeline and lands on a live
-dashboard with a pre-seeded incident.
+See the [demo bundle](https://github.com/StandardRunbook/grafana-hover-plugin/tree/main/demo)
+for an end-to-end script that brings up ClickHouse + Grafana + the
+OTel-fed ingest pipeline and lands on a live dashboard with a pre-seeded
+incident.
 
 ## Installation
 
