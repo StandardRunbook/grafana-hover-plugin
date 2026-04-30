@@ -1,0 +1,30 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+# Files genuinely outside unit-test territory:
+#   cmd/ + pkg/                 — process entry points (main()s)
+#   internal/plugin/            — Grafana plugin SDK glue; needs a live
+#                                 Grafana harness to exercise meaningfully
+#   internal/clickhouse/client.go has no test-friendly seam for the
+#   real-ClickHouse query path; pure helpers are tested below, the
+#   wrapped sql.DB calls are integration territory. (Not excluded —
+#   coverage will reflect just the pure-helper portion.)
+ignore:
+  - "cmd/**"
+  - "pkg/**"
+  - "internal/plugin/**"
+  - "test_clickhouse.go"
+  - "test_e2e.go"
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false
