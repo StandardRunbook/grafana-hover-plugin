@@ -4,10 +4,16 @@
   "compilerOptions": {
     "jsx": "react",
     "rootDir": ".",
-    "baseUrl": ".",
     "paths": {
-      "*": ["src/*"]
+      "*": ["./src/*"]
     },
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./node_modules/@types", "./types"],
+
+    // `@grafana/tsconfig` (the extended base) sets `downlevelIteration`
+    // and `moduleResolution: "node10"`, both deprecated in TS 6.0 and
+    // scheduled for removal in TS 7.0. We can't modify the base without
+    // forking it, so explicitly acknowledge the deprecation here.
+    // Drop this once @grafana/tsconfig stops emitting deprecated options.
+    "ignoreDeprecations": "6.0"
   }
 }
