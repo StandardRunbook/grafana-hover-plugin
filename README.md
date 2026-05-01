@@ -29,10 +29,45 @@ analytics over per-window template histograms.
 4. The API returns log groups; the panel renders them ranked by
    relevance and tagged with a percent-change-from-baseline indicator.
 
-See the [demo bundle](https://github.com/StandardRunbook/grafana-hover-plugin/tree/main/demo)
-for an end-to-end script that brings up ClickHouse + Grafana + the
-OTel-fed ingest pipeline and lands on a live dashboard with a pre-seeded
-incident.
+## Try the demo
+
+The repo ships an end-to-end demo that brings up ClickHouse + Grafana +
+the OTel-fed ingest pipeline and lands on a live dashboard with a
+pre-seeded incident — the same setup that produced the GIF above.
+
+Prereqs: Docker Desktop, Python 3, and the Rust
+[log-ingest-service](https://github.com/StandardRunbook/log_analysis)
+running on `host:4317` (the demo script verifies this and exits early
+if it's missing).
+
+```bash
+./demo/run.sh
+```
+
+Total time ~2 minutes. The script narrates each phase, then prints a
+dashboard URL pointing directly at the engineered incident:
+
+1. `docker compose up -d` — ClickHouse, Grafana with the plugin mounted
+   from `./dist`, OTel collector pointing at the host's ingest service.
+2. Streams 60s of mixed normal traffic so the analyzer's trailing
+   baseline has data to compare against.
+3. Calls `demo/incident.sh` — 30s of distribution-shifted traffic: cpu
+   drops to 5–15%, ERROR rate 5×, and a brand-new
+   `CRITICAL: db pool exhausted…` template appears that didn't exist
+   in baseline.
+4. Streams 30s of post-incident normal traffic.
+5. Prints a dashboard URL pre-set to the incident window ± 2 minutes.
+
+When you hover the dip in CPU Usage, the Hover Logs panel ranks
+`CRITICAL: db pool exhausted…` first with a red ↑ indicator. Hover the
+flat regions either side and it falls back to baseline templates.
+
+If the stack is already up, skip the cold start with
+`./demo/incident.sh` (then read `/tmp/incident_window.txt` for the
+absolute window). Tear down with `docker compose down -v`.
+
+See [`demo/README.md`](https://github.com/StandardRunbook/grafana-hover-plugin/tree/main/demo)
+for the rest of the knobs.
 
 ## Installation
 
