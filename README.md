@@ -13,6 +13,8 @@ chart on the dashboard, the panel sends the metric name, dashboard, panel
 title, and time window to a configured log analysis API and renders the
 returned log groups.
 
+![Demo: hovering a CPU dip surfaces the CRITICAL log lines that caused it](https://raw.githubusercontent.com/StandardRunbook/grafana-hover-plugin/main/src/img/grafana_hover.gif)
+
 The repo also ships a Go backend (`pkg/main.go` → `internal/`) that
 implements the API on top of ClickHouse, with Jensen-Shannon divergence
 analytics over per-window template histograms.
