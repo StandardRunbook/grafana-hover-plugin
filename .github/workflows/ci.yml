@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           # Track go.mod's required version automatically. A Go bump
           # there (driven by a dep that needs newer toolchain support,
@@ -74,7 +74,7 @@ jobs:
         run: pnpm run test:ci
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
