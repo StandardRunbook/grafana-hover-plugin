@@ -3,7 +3,7 @@ module github.com/StandardRunbook/grafana-hover-plugin
 go 1.25.7
 
 require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.45.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/grafana/grafana-plugin-sdk-go v0.292.0
 	github.com/spf13/viper v1.21.0
 )
