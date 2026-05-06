@@ -155,7 +155,7 @@ jobs:
           ls -la "${{ steps.meta.outputs.artifact }}"
 
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ steps.meta.outputs.artifact }}
 
